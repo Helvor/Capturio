@@ -735,13 +735,28 @@ async def edit_space_form(space_id: str, request: Request, db: AsyncSession = De
         return RedirectResponse("/auth/login", status_code=302)
 
     from sqlalchemy.orm import selectinload
+    sid = uuid.UUID(space_id)
     space = (await db.execute(
-        select(Space).where(Space.id == uuid.UUID(space_id)).options(selectinload(Space.albums))
+        select(Space).where(Space.id == sid).options(selectinload(Space.albums))
     )).scalar_one_or_none()
     if not space:
         raise HTTPException(status_code=404)
 
-    return templates.TemplateResponse("admin/space_edit.html", _admin_ctx(request, space=space))
+    space_album_ids = {a.id for a in space.albums}
+    available_albums = (await db.execute(
+        select(Album).where(Album.space_id == None).order_by(Album.sort_order)
+    )).scalars().all()
+
+    from app.services.album_token import share_token as _share_token
+    share_link = None
+    if space.is_private and space.password_hash:
+        tok = _share_token(get_settings().secret_key, space.password_hash)
+        share_link = f"/spaces/{space.slug}/{tok}"
+
+    return templates.TemplateResponse("admin/space_edit.html", _admin_ctx(
+        request, space=space, available_albums=available_albums,
+        space_album_ids=space_album_ids, share_link=share_link,
+    ))
 
 
 @router.post("/spaces/{space_id}/edit")
@@ -752,6 +767,9 @@ async def edit_space(
     slug: str = Form(...),
     description: str = Form(default=""),
     is_published: str = Form(default=""),
+    is_private: str = Form(default=""),
+    new_password: str = Form(default=""),
+    remove_password: str = Form(default=""),
     sort_order: int = Form(default=0),
     db: AsyncSession = Depends(get_db),
 ):
@@ -768,9 +786,62 @@ async def edit_space(
     space.slug = slug
     space.description = description or None
     space.is_published = is_published == "on"
+    space.is_private = is_private == "on"
     space.sort_order = sort_order
+
+    if remove_password == "1":
+        space.password_hash = None
+    elif new_password:
+        import bcrypt as _bcrypt
+        space.password_hash = await asyncio.to_thread(
+            lambda: _bcrypt.hashpw(new_password.encode(), _bcrypt.gensalt(rounds=12)).decode()
+        )
+
     await db.commit()
-    return RedirectResponse("/admin/spaces", status_code=303)
+    return RedirectResponse(f"/admin/spaces/{space_id}/edit", status_code=303)
+
+
+@router.post("/spaces/{space_id}/albums/add")
+async def add_albums_to_space(
+    space_id: str,
+    request: Request,
+    album_ids: list[str] = Form(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    sid = uuid.UUID(space_id)
+    for aid_str in album_ids:
+        try:
+            aid = uuid.UUID(aid_str)
+        except ValueError:
+            continue
+        album = (await db.execute(select(Album).where(Album.id == aid))).scalar_one_or_none()
+        if album:
+            album.space_id = sid
+    await db.commit()
+    return RedirectResponse(f"/admin/spaces/{space_id}/edit", status_code=303)
+
+
+@router.post("/spaces/{space_id}/albums/{album_id}/remove")
+async def remove_album_from_space(
+    space_id: str, album_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    album = (await db.execute(select(Album).where(
+        and_(Album.id == uuid.UUID(album_id), Album.space_id == uuid.UUID(space_id))
+    ))).scalar_one_or_none()
+    if album:
+        album.space_id = None
+        await db.commit()
+    return RedirectResponse(f"/admin/spaces/{space_id}/edit", status_code=303)
 
 
 @router.post("/spaces/{space_id}/delete")

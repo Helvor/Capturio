@@ -32,6 +32,52 @@
         Published
       </label>
     </div>
+
+    <div class="form-separator"></div>
+
+    <div class="form-row">
+      <label class="checkbox-label">
+        <input type="checkbox" name="is_private" id="isPrivate"
+               {% if space.is_private %}checked{% endif %}
+               onchange="togglePrivacy()" />
+        Private (password-protected)
+      </label>
+    </div>
+
+    <div id="privacySection" style="display:{% if space.is_private %}block{% else %}none{% endif %}">
+      {% if space.password_hash %}
+      <div class="form-group">
+        <label>Password already set</label>
+        <label class="checkbox-label" style="margin-top:0.4rem">
+          <input type="checkbox" name="remove_password" value="1" />
+          Remove password
+        </label>
+      </div>
+      <div class="form-group">
+        <label>New password (leave blank to keep current)</label>
+        <input type="password" name="new_password" placeholder="New password" autocomplete="new-password" />
+      </div>
+      {% else %}
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="new_password" placeholder="Set a password" autocomplete="new-password" />
+      </div>
+      {% endif %}
+
+      {% if share_link %}
+      <div class="form-group">
+        <label>Share link</label>
+        <div class="share-link-box">
+          <div class="share-link-row">
+            <input type="text" class="share-link-input" value="{{ request.base_url | string | trim('/') }}{{ share_link }}" readonly id="shareLink" />
+            <button type="button" class="btn-xs" onclick="copyShare()">Copy</button>
+          </div>
+          <p class="form-hint">Share this link — anyone with it can access the space without entering the password.</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
     <div class="form-actions">
       <button type="submit" class="btn-primary">Save</button>
       <a href="/admin/spaces" class="btn-secondary">Cancel</a>
@@ -39,11 +85,11 @@
   </form>
 </div>
 
-{% if space.albums %}
 <div class="admin-section">
   <div class="admin-section-header">
     <h2>Albums in this space</h2>
   </div>
+  {% if space.albums %}
   <table class="admin-table">
     <thead>
       <tr><th>Title</th><th>Status</th><th>Actions</th></tr>
@@ -58,14 +104,73 @@
           {% else %}
           <span class="badge badge-grey">Draft</span>
           {% endif %}
+          {% if album.is_private %}
+          <span class="badge badge-blue">Private</span>
+          {% endif %}
         </td>
         <td class="actions-cell">
           <a href="/admin/albums/{{ album.id }}/edit" class="btn-xs">Edit</a>
+          <form action="/admin/spaces/{{ space.id }}/albums/{{ album.id }}/remove" method="post" style="display:inline">
+            <button type="submit" class="btn-xs btn-danger">Remove</button>
+          </form>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <p class="muted-cell" style="padding:0.75rem 0">No albums assigned yet.</p>
+  {% endif %}
+</div>
+
+{% if available_albums %}
+<div class="admin-section">
+  <div class="admin-section-header">
+    <h2>Add albums</h2>
+  </div>
+  <form action="/admin/spaces/{{ space.id }}/albums/add" method="post">
+    <div class="photo-select-grid" id="albumSelectGrid">
+      {% for album in available_albums %}
+      <label class="photo-select-item" id="albumItem_{{ album.id }}">
+        <input type="checkbox" name="album_ids" value="{{ album.id }}"
+               onchange="toggleAlbumSelect('{{ album.id }}')" />
+        <div class="album-select-cover">
+          {% if album.cover_photo_id %}
+          <img src="/photos/{{ album.cover_photo_id }}/thumb" alt="{{ album.title }}" loading="lazy" />
+          {% else %}
+          <div class="album-cover-placeholder"></div>
+          {% endif %}
+        </div>
+        <span class="photo-select-name">{{ album.title }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="form-actions" style="margin-top:1rem">
+      <button type="submit" class="btn-primary">Add selected</button>
+    </div>
+  </form>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePrivacy() {
+  const checked = document.getElementById('isPrivate').checked;
+  document.getElementById('privacySection').style.display = checked ? 'block' : 'none';
+}
+function copyShare() {
+  const input = document.getElementById('shareLink');
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = input.nextElementSibling;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+function toggleAlbumSelect(id) {
+  const item = document.getElementById('albumItem_' + id);
+  const cb = item.querySelector('input[type=checkbox]');
+  item.classList.toggle('selected', cb.checked);
+}
+</script>
 {% endblock %}

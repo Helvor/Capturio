@@ -39,6 +39,9 @@
           {% else %}
           <span class="badge badge-grey">Draft</span>
           {% endif %}
+          {% if space.is_private %}
+          <span class="badge badge-blue">Private</span>
+          {% endif %}
         </td>
         <td class="actions-cell">
           <a href="/admin/spaces/{{ space.id }}/edit" class="btn-xs">Edit</a>
