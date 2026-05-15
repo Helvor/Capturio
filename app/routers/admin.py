@@ -4,8 +4,10 @@ import math
 import uuid
 import shutil
 
+import json
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, delete
 import markdown as md
@@ -15,7 +17,7 @@ from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
 from app.routers.auth import get_current_admin
-from app.services.scanner import scan_photos_dir, scan_folder_flat, get_folder_tree
+from app.services.scanner import scan_photos_dir, scan_folder_flat, get_folder_tree, ingest_files_stream, _collect_files
 from app.services.exif import extract_exif
 from app.services.thumbnail import generate_thumbnail
 from app.config import get_settings
@@ -56,6 +58,13 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         select(Photo).order_by(Photo.uploaded_at.desc()).limit(10)
     )).scalars().all()
 
+    announcements = (await db.execute(
+        select(Post)
+        .where(Post.post_type == PostType.announcement, Post.is_published == True)
+        .order_by(Post.pinned.desc(), Post.created_at.desc())
+        .limit(5)
+    )).scalars().all()
+
     return templates.TemplateResponse("admin/dashboard.html", _admin_ctx(
         request,
         total_photos=total_photos,
@@ -63,6 +72,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         total_albums=total_albums,
         total_posts=total_posts,
         recent_photos=recent_photos,
+        announcements=announcements,
     ))
 
 
@@ -118,22 +128,11 @@ async def import_folder(
         return RedirectResponse("/auth/login", status_code=302)
 
     settings = get_settings()
-
-    # Security: ensure path stays within PHOTOS_DIR
     abs_target = os.path.realpath(os.path.join(settings.photos_dir, folder_path))
     if not abs_target.startswith(os.path.realpath(settings.photos_dir)):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    if recursive == "on":
-        result = await scan_photos_dir(abs_target, db)
-    else:
-        result = await scan_folder_flat(abs_target, db)
-
-    if not result["photo_ids"]:
-        parent = os.path.dirname(folder_path) if folder_path else ""
-        return RedirectResponse(f"/admin/folders?path={parent}&imported=0", status_code=303)
-
-    # Resolve or create album
+    # Resolve or create album before streaming (needs DB flush)
     target_album = None
     if new_album_title and new_album_slug:
         target_album = Album(
@@ -144,21 +143,31 @@ async def import_folder(
         db.add(target_album)
         await db.flush()
     elif album_id:
-        target_album = (await db.execute(select(Album).where(Album.id == uuid.UUID(album_id)))).scalar_one_or_none()
+        target_album = (await db.execute(
+            select(Album).where(Album.id == uuid.UUID(album_id))
+        )).scalar_one_or_none()
 
-    if target_album:
-        max_pos = (await db.execute(
-            select(func.coalesce(func.max(AlbumPhoto.position), -1)).where(AlbumPhoto.album_id == target_album.id)
-        )).scalar()
-        for i, pid in enumerate(result["photo_ids"]):
-            db.add(AlbumPhoto(album_id=target_album.id, photo_id=pid, position=max_pos + 1 + i))
-        await db.commit()
-
+    files = _collect_files(abs_target, recursive=(recursive == "on"))
     parent = os.path.dirname(folder_path) if folder_path else ""
-    return RedirectResponse(
-        f"/admin/folders?path={parent}&imported={result['new']}&skipped={result['skipped']}",
-        status_code=303,
-    )
+
+    async def event_stream():
+        new_photo_ids = []
+        async for event in ingest_files_stream(files, db):
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("done"):
+                new_photo_ids = [uuid.UUID(p) for p in event.get("photo_ids", [])]
+
+        if target_album and new_photo_ids:
+            max_pos = (await db.execute(
+                select(func.coalesce(func.max(AlbumPhoto.position), -1))
+                .where(AlbumPhoto.album_id == target_album.id)
+            )).scalar()
+            for i, pid in enumerate(new_photo_ids):
+                db.add(AlbumPhoto(album_id=target_album.id, photo_id=pid, position=max_pos + 1 + i))
+            await db.commit()
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream",
+                             headers={"X-Folder-Parent": parent})
 
 
 # ── Photos ─────────────────────────────────────────────────────────────────────
