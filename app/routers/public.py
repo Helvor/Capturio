@@ -21,17 +21,27 @@ PLACEHOLDER = os.path.join(os.path.dirname(__file__), "..", "static", "placehold
 PAGE_SIZE = 24
 
 
-async def _build_photo_query(album: str | None, db: AsyncSession):
+async def _photo_queries(album: str | None, db: AsyncSession):
+    """Return (data_query, count_query) for the given album filter."""
     if album:
         album_obj = (await db.execute(select(Album).where(Album.slug == album))).scalar_one_or_none()
         if album_obj:
-            return (
+            aid = album_obj.id
+            data_q = (
                 select(Photo)
                 .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
-                .where(and_(AlbumPhoto.album_id == album_obj.id, Photo.is_published == True))
+                .where(and_(AlbumPhoto.album_id == aid, Photo.is_published == True))
                 .order_by(AlbumPhoto.position)
             )
-    return select(Photo).where(Photo.is_published == True).order_by(Photo.uploaded_at.desc())
+            count_q = (
+                select(func.count(Photo.id))
+                .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+                .where(and_(AlbumPhoto.album_id == aid, Photo.is_published == True))
+            )
+            return data_q, count_q
+    data_q = select(Photo).where(Photo.is_published == True).order_by(Photo.uploaded_at.desc())
+    count_q = select(func.count(Photo.id)).where(Photo.is_published == True)
+    return data_q, count_q
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -46,11 +56,11 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
     albums_q = select(Album).where(Album.is_published == True).order_by(Album.sort_order)
     albums = (await db.execute(albums_q)).scalars().all()
 
-    q = await _build_photo_query(album, db)
-    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    data_q, count_q = await _photo_queries(album, db)
+    total = (await db.execute(count_q)).scalar()
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
     page = min(page, total_pages)
-    photos = (await db.execute(q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
+    photos = (await db.execute(data_q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
 
     return templates.TemplateResponse("public/index.html", {
         "request": request,
@@ -66,11 +76,11 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
 
 @router.get("/api/photos")
 async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession = Depends(get_db)):
-    q = await _build_photo_query(album, db)
-    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    data_q, count_q = await _photo_queries(album, db)
+    total = (await db.execute(count_q)).scalar()
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
     page = min(max(1, page), total_pages)
-    photos = (await db.execute(q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
+    photos = (await db.execute(data_q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
     return JSONResponse({
         "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
         "page": page,

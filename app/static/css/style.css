@@ -114,15 +114,20 @@ button, input, select, textarea {
 
 /* Scroll sentinel */
 .scroll-sentinel {
-  height: 60px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
+.scroll-sentinel.loading::after {
+  content: '';
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Announcement strip ────────────────────────────────────────────────────── */
 .announce-strip {

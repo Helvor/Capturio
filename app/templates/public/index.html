@@ -33,9 +33,7 @@
 </div>
 
 {% if total_pages > 1 %}
-<div class="scroll-sentinel" id="sentinel">
-  <span id="sentinelLabel">Loading…</span>
-</div>
+<div class="scroll-sentinel" id="sentinel"></div>
 {% endif %}
 
 {% else %}
@@ -44,55 +42,62 @@
 {% endblock %}
 
 {% block scripts %}
+{% if total_pages > 1 %}
 <script>
 (function () {
   const grid = document.getElementById('photoGrid');
   const sentinel = document.getElementById('sentinel');
-  const label = document.getElementById('sentinelLabel');
   if (!grid || !sentinel) return;
 
   let page = {{ page }};
   const totalPages = {{ total_pages }};
-  const album = {{ ('"' + current_album + '"') if current_album else 'null' }};
+  const album = {{ ('"' ~ current_album ~ '"') | safe if current_album else 'null' }};
+  let loading = false;
 
-  if (page >= totalPages) { sentinel.remove(); return; }
-
-  const observer = new IntersectionObserver(async (entries) => {
-    if (!entries[0].isIntersecting) return;
-    observer.disconnect();
-    page++;
-    label.textContent = 'Loading…';
+  async function loadMore() {
+    if (loading || page >= totalPages) return;
+    loading = true;
+    sentinel.classList.add('loading');
 
     try {
-      const url = `/api/photos?page=${page}${album ? '&album=' + encodeURIComponent(album) : ''}`;
+      const url = '/api/photos?page=' + (page + 1) + (album ? '&album=' + encodeURIComponent(album) : '');
       const resp = await fetch(url);
+      if (!resp.ok) throw new Error(resp.status);
       const data = await resp.json();
+
+      page = data.page;
 
       for (const photo of data.photos) {
         const a = document.createElement('a');
-        a.href = `/photos/${photo.id}${album ? '?album=' + encodeURIComponent(album) : ''}`;
+        a.href = '/photos/' + photo.id + (album ? '?album=' + encodeURIComponent(album) : '');
         a.className = 'photo-card';
         const img = document.createElement('img');
-        img.src = `/photos/${photo.id}/thumb`;
+        img.src = '/photos/' + photo.id + '/thumb';
         img.alt = photo.title || photo.filename;
         img.loading = 'lazy';
         a.appendChild(img);
         grid.appendChild(a);
       }
 
-      if (data.has_more) {
-        label.textContent = '';
-        grid.after(sentinel);
-        observer.observe(sentinel);
-      } else {
-        sentinel.remove();
-      }
-    } catch (_) {
+      if (!data.has_more) sentinel.remove();
+    } catch (e) {
       sentinel.remove();
+    } finally {
+      loading = false;
+      sentinel.classList.remove('loading');
     }
-  }, { rootMargin: '300px' });
+  }
 
-  observer.observe(sentinel);
+  function onScroll() {
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
+      loadMore();
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  // trigger immediately in case page is short
+  onScroll();
 })();
 </script>
+{% endif %}
 {% endblock %}
