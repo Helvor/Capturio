@@ -173,7 +173,6 @@ async def import_folder(
         new_album = Album(
             title=new_album_title,
             slug=new_album_slug,
-            description=f"Imported from {os.path.basename(abs_target)}",
         )
         db.add(new_album)
         await db.commit()
@@ -501,12 +500,24 @@ async def edit_album(
     if not album:
         raise HTTPException(status_code=404)
 
+    publishing = is_published == "on"
     album.title = title
     album.slug = slug
     album.description = description or None
-    album.is_published = is_published == "on"
+    album.is_published = publishing
     album.sort_order = sort_order
     album.cover_photo_id = uuid.UUID(cover_photo_id) if cover_photo_id else None
+
+    if publishing:
+        photo_ids_in_album = (await db.execute(
+            select(AlbumPhoto.photo_id).where(AlbumPhoto.album_id == album.id)
+        )).scalars().all()
+        if photo_ids_in_album:
+            from sqlalchemy import update
+            await db.execute(
+                update(Photo).where(Photo.id.in_(photo_ids_in_album)).values(is_published=True)
+            )
+
     await db.commit()
     return RedirectResponse("/admin/albums", status_code=303)
 
