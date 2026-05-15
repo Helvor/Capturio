@@ -22,7 +22,8 @@
   function updateZoneLabel() {
     const count = input.files.length;
     if (count > 0) {
-      zone.querySelector('p').textContent = `${count} file${count > 1 ? 's' : ''} selected`;
+      const p = zone.querySelector('p');
+      if (p) p.textContent = `${count} file${count > 1 ? 's' : ''} selected`;
       if (btn) btn.style.display = 'inline-flex';
     }
   }
