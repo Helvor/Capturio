@@ -4,7 +4,14 @@
 {% block content %}
 <div class="admin-page-header">
   <h1>Edit: {{ album.title }}</h1>
-  <a href="/admin/albums" class="btn-secondary">&larr; Back</a>
+  <div class="header-actions">
+    <button class="btn-secondary" id="regenBtn" onclick="startRegen()">Regen thumbnails</button>
+    <a href="/admin/albums" class="btn-secondary">&larr; Back</a>
+  </div>
+</div>
+<div id="regenProgress" style="display:none; margin-bottom:1rem">
+  <div class="progress-bar-track"><div class="progress-bar-fill" id="regenFill"></div></div>
+  <p class="progress-label" id="regenLabel"></p>
 </div>
 
 <div class="admin-section">
@@ -289,6 +296,48 @@ if (grid) {
     lastIndex = null;
     updateUI();
   });
+}
+</script>
+<script>
+async function startRegen() {
+  if (!confirm('Regenerate thumbnails for this album?')) return;
+  const btn = document.getElementById('regenBtn');
+  const progress = document.getElementById('regenProgress');
+  const fill = document.getElementById('regenFill');
+  const label = document.getElementById('regenLabel');
+  btn.disabled = true;
+  progress.style.display = 'block';
+  label.textContent = 'Starting…';
+
+  const resp = await fetch('/admin/albums/{{ album.id }}/regen-thumbs', { method: 'POST' });
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop();
+    for (const chunk of lines) {
+      const line = chunk.replace(/^data: /, '').trim();
+      if (!line) continue;
+      try {
+        const ev = JSON.parse(line);
+        if (ev.done) {
+          fill.style.width = '100%';
+          const errMsg = ev.errors > 0 ? ` (${ev.errors} failed)` : '';
+          label.textContent = `Done — ${ev.total} thumbnails regenerated${errMsg}`;
+          btn.disabled = false;
+        } else {
+          const pct = ev.total > 0 ? Math.round((ev.current / ev.total) * 100) : 0;
+          fill.style.width = pct + '%';
+          label.textContent = `${ev.current} / ${ev.total}`;
+        }
+      } catch (_) {}
+    }
+  }
 }
 </script>
 {% endblock %}

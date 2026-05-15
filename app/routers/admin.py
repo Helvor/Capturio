@@ -682,6 +682,34 @@ async def move_photo_in_album(
     return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
 
 
+@router.post("/albums/{album_id}/regen-thumbs")
+async def regen_album_thumbs(album_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    settings = get_settings()
+    rows = (await db.execute(
+        select(Photo.id, Photo.filepath)
+        .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+        .where(AlbumPhoto.album_id == uuid.UUID(album_id))
+        .order_by(AlbumPhoto.position)
+    )).all()
+
+    async def stream():
+        total = len(rows)
+        errors = 0
+        for i, (photo_id, filepath) in enumerate(rows):
+            result = await asyncio.to_thread(generate_thumbnail, str(photo_id), filepath, settings.thumbs_dir, True)
+            if not result:
+                errors += 1
+            yield f"data: {json.dumps({'current': i+1, 'total': total})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'total': total, 'errors': errors})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
 @router.post("/albums/{album_id}/delete")
 async def delete_album(album_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     try:
