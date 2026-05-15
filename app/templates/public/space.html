@@ -12,9 +12,9 @@
   </div>
 </div>
 
-{% if space.albums %}
+{% if albums %}
 <div class="albums-grid">
-  {% for album in space.albums %}
+  {% for album in albums %}
   <a href="/albums/{{ album.slug }}" class="album-card">
     <div class="album-card-cover">
       {% if album.cover_photo %}
