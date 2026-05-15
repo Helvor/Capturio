@@ -1,27 +1,31 @@
 import asyncio
-import os
-import math
-import uuid
-import shutil
-
 import json
+import math
+import os
+import shutil
+import time
+import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, delete
 import markdown as md
 
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
 from app.routers.auth import get_current_admin
-from app.services.scanner import scan_photos_dir, scan_folder_flat, get_folder_tree, ingest_files_stream, _collect_files
+from app.services.scanner import get_folder_tree, ingest_files_stream, _collect_files
 from app.services.exif import extract_exif
 from app.services.thumbnail import generate_thumbnail
 from app.config import get_settings
 from app.templates_env import templates
+
+# ── Background import jobs ─────────────────────────────────────────────────────
+# job_id → {folder, status, current, total, new, skipped, started_at, done_at}
+_jobs: dict[str, dict] = {}
 
 router = APIRouter(prefix="/admin")
 
@@ -112,6 +116,37 @@ async def folders_browser(
     ))
 
 
+async def _run_import_job(job_id: str, files: list, target_album_id: uuid.UUID | None, folder_name: str):
+    """Background task: imports files with its own DB session."""
+    async with AsyncSessionLocal() as db:
+        try:
+            async for event in ingest_files_stream(files, db):
+                if event.get("done"):
+                    new_photo_ids = [uuid.UUID(p) for p in event.get("photo_ids", [])]
+                    _jobs[job_id].update({"new": event["new"], "skipped": event["skipped"]})
+
+                    if target_album_id and new_photo_ids:
+                        max_pos = (await db.execute(
+                            select(func.coalesce(func.max(AlbumPhoto.position), -1))
+                            .where(AlbumPhoto.album_id == target_album_id)
+                        )).scalar()
+                        for i, pid in enumerate(new_photo_ids):
+                            db.add(AlbumPhoto(album_id=target_album_id, photo_id=pid,
+                                              position=max_pos + 1 + i))
+                        await db.commit()
+                else:
+                    _jobs[job_id].update({
+                        "current": event["current"],
+                        "total": event["total"],
+                        "filename": event.get("filename", ""),
+                    })
+        except Exception as e:
+            _jobs[job_id]["error"] = str(e)
+        finally:
+            _jobs[job_id]["status"] = "done"
+            _jobs[job_id]["done_at"] = time.time()
+
+
 @router.post("/import-folder")
 async def import_folder(
     request: Request,
@@ -132,7 +167,7 @@ async def import_folder(
     if not abs_target.startswith(os.path.realpath(settings.photos_dir)):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Resolve or create album — commit immediately so the ID is stable before streaming
+    # Create album in request context so ID is ready before background task starts
     target_album_id: uuid.UUID | None = None
     if new_album_title and new_album_slug:
         new_album = Album(
@@ -147,26 +182,42 @@ async def import_folder(
         target_album_id = uuid.UUID(album_id)
 
     files = _collect_files(abs_target, recursive=(recursive == "on"))
+    folder_name = os.path.basename(abs_target)
     parent = os.path.dirname(folder_path) if folder_path else ""
 
-    async def event_stream():
-        new_photo_ids = []
-        async for event in ingest_files_stream(files, db):
-            yield f"data: {json.dumps(event)}\n\n"
-            if event.get("done"):
-                new_photo_ids = [uuid.UUID(p) for p in event.get("photo_ids", [])]
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "status": "running",
+        "folder": folder_name,
+        "current": 0,
+        "total": len(files),
+        "new": 0,
+        "skipped": 0,
+        "filename": "",
+        "started_at": time.time(),
+        "done_at": None,
+        "parent": parent,
+    }
 
-        if target_album_id and new_photo_ids:
-            max_pos = (await db.execute(
-                select(func.coalesce(func.max(AlbumPhoto.position), -1))
-                .where(AlbumPhoto.album_id == target_album_id)
-            )).scalar()
-            for i, pid in enumerate(new_photo_ids):
-                db.add(AlbumPhoto(album_id=target_album_id, photo_id=pid, position=max_pos + 1 + i))
-            await db.commit()
+    asyncio.create_task(_run_import_job(job_id, files, target_album_id, folder_name))
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream",
-                             headers={"X-Folder-Parent": parent})
+    return RedirectResponse(f"/admin/folders?path={parent}", status_code=303)
+
+
+@router.get("/import-jobs")
+async def import_jobs(request: Request):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        raise HTTPException(status_code=401)
+
+    # Clean up completed jobs older than 30s
+    now = time.time()
+    stale = [jid for jid, j in _jobs.items() if j["status"] == "done" and (now - j["done_at"]) > 30]
+    for jid in stale:
+        del _jobs[jid]
+
+    return JSONResponse(list(_jobs.values()))
 
 
 # ── Photos ─────────────────────────────────────────────────────────────────────
