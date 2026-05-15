@@ -6,7 +6,6 @@ import shutil
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, delete
 import markdown as md
@@ -20,9 +19,9 @@ from app.services.scanner import scan_photos_dir, scan_folder_flat, get_folder_t
 from app.services.exif import extract_exif
 from app.services.thumbnail import generate_thumbnail
 from app.config import get_settings
+from app.templates_env import templates
 
 router = APIRouter(prefix="/admin")
-templates = Jinja2Templates(directory="app/templates")
 
 PAGE_SIZE = 20
 

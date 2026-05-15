@@ -1,21 +1,20 @@
 import os
 import math
 
+import markdown as md
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-import markdown as md
 
 from app.database import get_db
 from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
 from app.config import get_settings
+from app.templates_env import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 PLACEHOLDER = os.path.join(os.path.dirname(__file__), "..", "static", "placeholder.webp")
 PAGE_SIZE = 24

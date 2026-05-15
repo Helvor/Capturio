@@ -117,7 +117,7 @@
       </div>
 
       <div class="modal-actions">
-        <button type="submit" class="btn-primary">Import</button>
+        <button type="submit" id="importSubmitBtn" class="btn-primary">Import</button>
         <button type="button" class="btn-secondary" onclick="closeImport()">Cancel</button>
       </div>
     </form>
@@ -130,9 +130,10 @@
 function openImport(relPath, name) {
   document.getElementById('modalFolderPath').value = relPath;
   document.getElementById('modalFolderName').textContent = name;
-  // Pre-fill album name from folder name
   document.getElementById('newAlbumTitle').value = name;
   document.getElementById('newAlbumSlug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  document.getElementById('importSubmitBtn').textContent = 'Import';
+  document.getElementById('importSubmitBtn').disabled = false;
   document.getElementById('importModal').style.display = 'flex';
 }
 
@@ -155,6 +156,12 @@ function toggleNewAlbum() {
 
 document.getElementById('importModal').addEventListener('click', function(e) {
   if (e.target === this) closeImport();
+});
+
+document.querySelector('#importModal form').addEventListener('submit', function() {
+  const btn = document.getElementById('importSubmitBtn');
+  btn.textContent = 'Importing…';
+  btn.disabled = true;
 });
 </script>
 {% endblock %}
