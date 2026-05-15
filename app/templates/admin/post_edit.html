@@ -11,11 +11,11 @@
       method="post" class="edit-form post-edit-form">
   <div class="form-group">
     <label>Title</label>
-    <input type="text" name="title" value="{{ post.title if post else '' }}" required />
+    <input type="text" name="title" id="postTitle" value="{{ post.title if post else '' }}" required />
   </div>
   <div class="form-group">
     <label>Slug</label>
-    <input type="text" name="slug" value="{{ post.slug if post else '' }}" required />
+    <input type="text" name="slug" id="postSlug" value="{{ post.slug if post else '' }}" required />
   </div>
   <div class="form-group">
     <label>Type</label>
@@ -50,6 +50,22 @@
 
 {% block scripts %}
 <script>
+  const titleInput = document.getElementById('postTitle');
+  const slugInput = document.getElementById('postSlug');
+  let slugManuallyEdited = slugInput.value !== '';
+
+  function toSlug(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  titleInput.addEventListener('input', () => {
+    if (!slugManuallyEdited) slugInput.value = toSlug(titleInput.value);
+  });
+  slugInput.addEventListener('input', () => {
+    slugManuallyEdited = slugInput.value !== '';
+  });
+
   const body = document.getElementById('postBody');
   const preview = document.getElementById('markdownPreview');
   function renderPreview() {
