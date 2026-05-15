@@ -28,6 +28,25 @@ from app.templates_env import templates
 # job_id → {folder, status, current, total, new, skipped, started_at, done_at}
 _jobs: dict[str, dict] = {}
 
+# ── Background regen job (single slot) ────────────────────────────────────────
+_regen_job: dict = {}
+
+
+async def _run_regen_job():
+    from app.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        settings = get_settings()
+        photos = (await db.execute(select(Photo.id, Photo.filepath))).all()
+        total = len(photos)
+        _regen_job.update({"status": "running", "current": 0, "total": total,
+                           "errors": 0, "started_at": time.time(), "done_at": None})
+        for i, (photo_id, filepath) in enumerate(photos):
+            result = await asyncio.to_thread(generate_thumbnail, str(photo_id), filepath, settings.thumbs_dir, True)
+            if not result:
+                _regen_job["errors"] += 1
+            _regen_job["current"] = i + 1
+        _regen_job.update({"status": "done", "done_at": time.time()})
+
 router = APIRouter(prefix="/admin")
 
 PAGE_SIZE = 20
@@ -276,7 +295,30 @@ async def import_jobs(request: Request):
     return JSONResponse(list(_jobs.values()))
 
 
+@router.get("/regen-job")
+async def regen_job_status(request: Request):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        raise HTTPException(status_code=401)
+    return JSONResponse(_regen_job)
+
+
 # ── Photos ─────────────────────────────────────────────────────────────────────
+
+@router.post("/photos/regen-thumbs-bg")
+async def regen_thumbs_bg(request: Request):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    if _regen_job.get("status") == "running":
+        return RedirectResponse("/admin/photos", status_code=303)
+
+    asyncio.create_task(_run_regen_job())
+    return RedirectResponse("/admin/photos", status_code=303)
+
 
 @router.post("/photos/regen-thumbs")
 async def regen_thumbs(request: Request, db: AsyncSession = Depends(get_db)):

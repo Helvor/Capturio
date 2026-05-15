@@ -140,6 +140,22 @@ async function pollJobs() {
 pollJobs();
 setInterval(pollJobs, 2000);
 
+async function pollRegen() {
+  try {
+    const resp = await fetch('/admin/regen-job');
+    const job = await resp.json();
+    if (!job || !job.status) return;
+    if (job.status === 'running') {
+      const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
+      banner.innerHTML += `<span class="job-running">&#8635; Regen thumbnails — ${job.current}/${job.total} (${pct}%)</span>`;
+      banner.style.display = 'flex';
+    }
+  } catch (_) {}
+}
+
+pollRegen();
+setInterval(pollRegen, 2000);
+
 async function runDbOptimize() {
   const btn = document.getElementById('dbOptBtn');
   const section = document.getElementById('dbOptSection');
