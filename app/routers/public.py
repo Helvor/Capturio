@@ -149,16 +149,18 @@ async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession =
 
 @router.get("/albums", response_class=HTMLResponse)
 async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
-    # Published spaces with their published albums
-    spaces = (await db.execute(
+    # Only public (non-private) published spaces
+    spaces_raw = (await db.execute(
         select(Space)
-        .where(Space.is_published == True)
+        .where(and_(Space.is_published == True, Space.is_private == False))
         .options(selectinload(Space.albums).selectinload(Album.cover_photo))
         .order_by(Space.sort_order)
     )).scalars().all()
-    # Filter albums within spaces to only published, non-private ones
-    for space in spaces:
-        space.albums = [a for a in space.albums if a.is_published and not a.is_private]
+    # Build (space, filtered_albums) pairs without mutating ORM relationship
+    spaces = [
+        (space, [a for a in space.albums if a.is_published and not a.is_private])
+        for space in spaces_raw
+    ]
 
     # Published albums not in any space
     q = (select(Album)
@@ -243,8 +245,8 @@ async def space_detail(slug: str, request: Request, db: AsyncSession = Depends(g
     if space.is_private and slug not in _get_unlocked_spaces(request):
         return RedirectResponse(f"/spaces/{slug}/unlock", status_code=302)
 
-    space.albums = [a for a in space.albums if a.is_published and not a.is_private]
-    return templates.TemplateResponse("public/space.html", {"request": request, "space": space})
+    albums = [a for a in space.albums if a.is_published and not a.is_private]
+    return templates.TemplateResponse("public/space.html", {"request": request, "space": space, "albums": albums})
 
 
 @router.get("/albums/{slug}/{token}", response_class=HTMLResponse)

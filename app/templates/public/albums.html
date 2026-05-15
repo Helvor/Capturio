@@ -6,7 +6,7 @@
   <h1>Albums</h1>
 </div>
 
-{% for space in spaces %}
+{% for space, space_albums in spaces %}
 <div class="space-section">
   <div class="space-section-header">
     <a href="/spaces/{{ space.slug }}" class="space-section-title">{{ space.title }}</a>
@@ -14,9 +14,9 @@
     <span class="space-section-desc">{{ space.description }}</span>
     {% endif %}
   </div>
-  {% if space.albums %}
+  {% if space_albums %}
   <div class="albums-grid">
-    {% for album in space.albums %}
+    {% for album in space_albums %}
     <a href="/albums/{{ album.slug }}" class="album-card">
       <div class="album-card-cover">
         {% if album.cover_photo %}
@@ -35,7 +35,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="empty-state"><p>No albums in this space yet.</p></div>
+  <div class="empty-state" style="padding:1rem 2rem"><p>No albums in this space yet.</p></div>
   {% endif %}
 </div>
 {% endfor %}
