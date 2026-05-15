@@ -30,6 +30,15 @@
       <label>Cover photo ID</label>
       <input type="text" name="cover_photo_id" value="{{ album.cover_photo_id or '' }}" placeholder="UUID of cover photo" />
     </div>
+    <div class="form-group">
+      <label>Space</label>
+      <select name="space_id">
+        <option value="">— No space —</option>
+        {% for space in spaces %}
+        <option value="{{ space.id }}" {% if album.space_id == space.id %}selected{% endif %}>{{ space.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="form-row">
       <label class="checkbox-label">
         <input type="checkbox" name="is_published" {% if album.is_published %}checked{% endif %} />

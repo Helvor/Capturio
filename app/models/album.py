@@ -32,6 +32,9 @@ class Album(Base):
     cover_photo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("photos.id", ondelete="SET NULL"), nullable=True
     )
+    space_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("spaces.id", ondelete="SET NULL"), nullable=True
+    )
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -41,3 +44,4 @@ class Album(Base):
     )
 
     cover_photo = relationship("Photo", foreign_keys=[cover_photo_id])
+    space = relationship("Space", back_populates="albums")

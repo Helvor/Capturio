@@ -12,6 +12,12 @@
     <input type="text" name="title" placeholder="Title" required />
     <input type="text" name="slug" placeholder="slug-url" required />
     <input type="text" name="description" placeholder="Description (optional)" />
+    <select name="space_id">
+      <option value="">— No space —</option>
+      {% for space in spaces %}
+      <option value="{{ space.id }}">{{ space.title }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn-primary">Create</button>
   </form>
 </div>
@@ -21,7 +27,7 @@
     <thead>
       <tr>
         <th>Title</th>
-        <th>Slug</th>
+        <th>Space</th>
         <th>Status</th>
         <th>Order</th>
         <th>Actions</th>
@@ -31,12 +37,21 @@
       {% for album in albums %}
       <tr>
         <td>{{ album.title }}</td>
-        <td class="muted-cell">{{ album.slug }}</td>
+        <td class="muted-cell">
+          {% if album.space %}
+          <a href="/admin/spaces/{{ album.space.id }}/edit" class="inline-link">{{ album.space.title }}</a>
+          {% else %}
+          —
+          {% endif %}
+        </td>
         <td>
           {% if album.is_published %}
           <span class="badge badge-green">Published</span>
           {% else %}
           <span class="badge badge-grey">Draft</span>
+          {% endif %}
+          {% if album.is_private %}
+          <span class="badge badge-blue">Private</span>
           {% endif %}
         </td>
         <td class="muted-cell">{{ album.sort_order }}</td>
