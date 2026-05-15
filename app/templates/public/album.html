@@ -8,18 +8,82 @@
     <h1>{{ album.title }}</h1>
     {% if album.description %}<p class="section-desc">{{ album.description }}</p>{% endif %}
   </div>
-  <span class="section-count muted">{{ photos | length }} photo{% if photos | length != 1 %}s{% endif %}</span>
+  <span class="section-count muted">{{ total }} photo{% if total != 1 %}s{% endif %}</span>
 </div>
 
 {% if photos %}
-<div class="photo-grid">
+<div class="photo-grid" id="photoGrid">
   {% for photo in photos %}
   <a href="/photos/{{ photo.id }}?album={{ album.slug }}" class="photo-card">
     <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" loading="lazy" />
   </a>
   {% endfor %}
 </div>
+
+{% if total_pages > 1 %}
+<div class="scroll-sentinel" id="sentinel"></div>
+{% endif %}
+
 {% else %}
 <div class="empty-state"><p>No photos in this album.</p></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if total_pages > 1 %}
+<script>
+(function () {
+  const grid = document.getElementById('photoGrid');
+  const sentinel = document.getElementById('sentinel');
+  if (!grid || !sentinel) return;
+
+  let page = {{ page }};
+  const totalPages = {{ total_pages }};
+  const slug = {{ ('"' ~ album.slug ~ '"') | safe }};
+  let loading = false;
+
+  async function loadMore() {
+    if (loading || page >= totalPages) return;
+    loading = true;
+    sentinel.classList.add('loading');
+
+    try {
+      const resp = await fetch('/api/albums/' + encodeURIComponent(slug) + '/photos?page=' + (page + 1));
+      if (!resp.ok) throw new Error(resp.status);
+      const data = await resp.json();
+
+      page = data.page;
+
+      for (const photo of data.photos) {
+        const a = document.createElement('a');
+        a.href = '/photos/' + photo.id + '?album=' + encodeURIComponent(slug);
+        a.className = 'photo-card';
+        const img = document.createElement('img');
+        img.src = '/photos/' + photo.id + '/thumb';
+        img.alt = photo.title || photo.filename;
+        img.loading = 'lazy';
+        a.appendChild(img);
+        grid.appendChild(a);
+      }
+
+      if (!data.has_more) sentinel.remove();
+    } catch (e) {
+      sentinel.remove();
+    } finally {
+      loading = false;
+      sentinel.classList.remove('loading');
+    }
+  }
+
+  function onScroll() {
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
+      loadMore();
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
 {% endif %}
 {% endblock %}
