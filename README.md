@@ -39,8 +39,6 @@ SECRET_KEY=a_64_char_random_string
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=       # see step 3
 PHOTOS_HOST_DIR=./photos   # host path to your photos folder (e.g. /volume2/photos)
-PHOTOS_DIR=/photos
-CACHE_DIR=/app/cache
 APP_PORT=8000              # change to any free port on your host
 ```
 
@@ -144,6 +142,5 @@ yourdomain.com {
 | `SECRET_KEY` | JWT signing key (min 32 chars, keep secret) |
 | `ADMIN_USERNAME` | Admin login username |
 | `ADMIN_PASSWORD_HASH` | bcrypt hash of admin password |
-| `PHOTOS_DIR` | Mount path for original photos (default `/photos`) |
-| `CACHE_DIR` | Mount path for thumbnails (default `/app/cache`) |
+| `PHOTOS_HOST_DIR` | Path on your host/NAS to your photos folder (default `./photos`) |
 | `APP_PORT` | Host port to bind (default `8000`) |
