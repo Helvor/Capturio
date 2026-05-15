@@ -473,9 +473,17 @@ async def edit_album_form(album_id: str, request: Request, db: AsyncSession = De
     album_photo_ids = {p.id for p, _ in album_photos}
     available_photos = [p for p in all_photos if p.id not in album_photo_ids]
 
+    from app.services.album_token import share_token
+    from app.config import get_settings as _gs
+    share_link = None
+    if album.is_private and album.password_hash:
+        tok = share_token(_gs().secret_key, album.password_hash)
+        share_link = f"/albums/{album.slug}/{tok}"
+
     return templates.TemplateResponse("admin/album_edit.html", _admin_ctx(
         request, album=album, album_photos=album_photos,
-        available_photos=available_photos, album_photo_ids=album_photo_ids
+        available_photos=available_photos, album_photo_ids=album_photo_ids,
+        share_link=share_link,
     ))
 
 
