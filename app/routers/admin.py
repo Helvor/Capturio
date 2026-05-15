@@ -536,7 +536,12 @@ async def edit_album(
     album.is_private = is_private == "on"
     album.sort_order = sort_order
     album.cover_photo_id = uuid.UUID(cover_photo_id) if cover_photo_id else None
-    album.space_id = uuid.UUID(space_id) if space_id else None
+    new_space_id = uuid.UUID(space_id) if space_id else None
+    album.space_id = new_space_id
+    if new_space_id:
+        space = (await db.execute(select(Space).where(Space.id == new_space_id))).scalar_one_or_none()
+        if space and space.is_private:
+            album.is_private = True
 
     if remove_password == "1":
         album.password_hash = None
@@ -786,8 +791,16 @@ async def edit_space(
     space.slug = slug
     space.description = description or None
     space.is_published = is_published == "on"
-    space.is_private = is_private == "on"
+    becoming_private = is_private == "on"
+    space.is_private = becoming_private
     space.sort_order = sort_order
+
+    # If the space is being made private, propagate to all its albums
+    if becoming_private:
+        from sqlalchemy import update
+        await db.execute(
+            update(Album).where(Album.space_id == space.id).values(is_private=True)
+        )
 
     if remove_password == "1":
         space.password_hash = None
@@ -814,6 +827,10 @@ async def add_albums_to_space(
         return RedirectResponse("/auth/login", status_code=302)
 
     sid = uuid.UUID(space_id)
+    space = (await db.execute(select(Space).where(Space.id == sid))).scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404)
+
     for aid_str in album_ids:
         try:
             aid = uuid.UUID(aid_str)
@@ -822,6 +839,8 @@ async def add_albums_to_space(
         album = (await db.execute(select(Album).where(Album.id == aid))).scalar_one_or_none()
         if album:
             album.space_id = sid
+            if space.is_private:
+                album.is_private = True
     await db.commit()
     return RedirectResponse(f"/admin/spaces/{space_id}/edit", status_code=303)
 
