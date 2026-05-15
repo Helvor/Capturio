@@ -416,9 +416,11 @@ async def edit_album_form(album_id: str, request: Request, db: AsyncSession = De
     )
     album_photos = [(r[0], r[1]) for r in (await db.execute(album_photos_q)).all()]
     album_photo_ids = {p.id for p, _ in album_photos}
+    available_photos = [p for p in all_photos if p.id not in album_photo_ids]
 
     return templates.TemplateResponse("admin/album_edit.html", _admin_ctx(
-        request, album=album, album_photos=album_photos, all_photos=all_photos, album_photo_ids=album_photo_ids
+        request, album=album, album_photos=album_photos,
+        available_photos=available_photos, album_photo_ids=album_photo_ids
     ))
 
 
