@@ -1,8 +1,8 @@
 import os
 from PIL import Image
 
-MAX_SIZE = (1920, 1920)
-QUALITY = 92
+MAX_SIZE = (1200, 1200)
+QUALITY = 88
 
 # EXIF Orientation tag → PIL transpose operation
 _ORIENTATION_OPS = {
@@ -36,11 +36,13 @@ def generate_thumbnail(photo_id: str, filepath: str, thumbs_dir: str, force: boo
 
     try:
         img = Image.open(filepath)
-        img.load()  # force eager load so file handle can close safely
+        if img.format == "JPEG":
+            img.draft("RGB", MAX_SIZE)  # DCT downscale: read at reduced res
+        img.load()
         img = _fix_orientation(img)
         img = img.convert("RGB")
         img.thumbnail(MAX_SIZE, Image.LANCZOS)
-        img.save(out_path, "WEBP", quality=QUALITY, method=6)
+        img.save(out_path, "WEBP", quality=QUALITY, method=4)
         return out_path
     except Exception:
         return None
