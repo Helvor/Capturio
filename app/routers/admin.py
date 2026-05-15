@@ -132,20 +132,19 @@ async def import_folder(
     if not abs_target.startswith(os.path.realpath(settings.photos_dir)):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Resolve or create album before streaming (needs DB flush)
-    target_album = None
+    # Resolve or create album — commit immediately so the ID is stable before streaming
+    target_album_id: uuid.UUID | None = None
     if new_album_title and new_album_slug:
-        target_album = Album(
+        new_album = Album(
             title=new_album_title,
             slug=new_album_slug,
             description=f"Imported from {os.path.basename(abs_target)}",
         )
-        db.add(target_album)
-        await db.flush()
+        db.add(new_album)
+        await db.commit()
+        target_album_id = new_album.id
     elif album_id:
-        target_album = (await db.execute(
-            select(Album).where(Album.id == uuid.UUID(album_id))
-        )).scalar_one_or_none()
+        target_album_id = uuid.UUID(album_id)
 
     files = _collect_files(abs_target, recursive=(recursive == "on"))
     parent = os.path.dirname(folder_path) if folder_path else ""
@@ -157,13 +156,13 @@ async def import_folder(
             if event.get("done"):
                 new_photo_ids = [uuid.UUID(p) for p in event.get("photo_ids", [])]
 
-        if target_album and new_photo_ids:
+        if target_album_id and new_photo_ids:
             max_pos = (await db.execute(
                 select(func.coalesce(func.max(AlbumPhoto.position), -1))
-                .where(AlbumPhoto.album_id == target_album.id)
+                .where(AlbumPhoto.album_id == target_album_id)
             )).scalar()
             for i, pid in enumerate(new_photo_ids):
-                db.add(AlbumPhoto(album_id=target_album.id, photo_id=pid, position=max_pos + 1 + i))
+                db.add(AlbumPhoto(album_id=target_album_id, photo_id=pid, position=max_pos + 1 + i))
             await db.commit()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
@@ -195,6 +194,19 @@ async def photos_list(
         page=page,
         total_pages=total_pages,
     ))
+
+
+@router.post("/photos/publish-all")
+async def publish_all_photos(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    from sqlalchemy import update
+    await db.execute(update(Photo).where(Photo.is_published == False).values(is_published=True))
+    await db.commit()
+    return RedirectResponse("/admin/photos", status_code=303)
 
 
 @router.post("/photos/upload")
