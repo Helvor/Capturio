@@ -5,6 +5,10 @@
 <div class="admin-page-header">
   <h1>Photos</h1>
   <div class="header-actions">
+    <form action="/admin/photos/publish-all" method="post"
+          onsubmit="return confirm('Publish all draft photos?')">
+      <button type="submit" class="btn-secondary">Publish all</button>
+    </form>
     <a href="/admin/folders" class="btn-primary">&#128193; Import from folder</a>
   </div>
 </div>
