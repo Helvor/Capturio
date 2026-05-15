@@ -1,5 +1,5 @@
 import os
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 MAX_SIZE = (1920, 1920)
@@ -15,6 +15,7 @@ def generate_thumbnail(photo_id: str, filepath: str, thumbs_dir: str, force: boo
 
     try:
         with Image.open(filepath) as img:
+            img = ImageOps.exif_transpose(img)
             img = img.convert("RGB")
             img.thumbnail(MAX_SIZE, Image.LANCZOS)
             img.save(out_path, "WEBP", quality=QUALITY, method=6)
