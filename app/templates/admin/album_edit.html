@@ -41,35 +41,48 @@
 </div>
 
 <div class="admin-section">
-  <h2>Photos in this album</h2>
+  <div class="admin-section-header">
+    <h2>Photos in this album</h2>
+    <span id="removeCount" class="muted-cell" style="font-size:13px"></span>
+  </div>
   {% if album_photos %}
-  <table class="admin-table">
-    <thead>
-      <tr><th>Thumb</th><th>Filename</th><th>Position</th><th>Actions</th></tr>
-    </thead>
-    <tbody>
-      {% for photo, pos in album_photos %}
-      <tr>
-        <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
-        <td class="filename-cell">{{ photo.filename }}</td>
-        <td class="muted-cell">{{ pos }}</td>
-        <td class="actions-cell">
-          <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
-            <input type="hidden" name="direction" value="up" />
-            <button type="submit" class="btn-xs">&#8593;</button>
-          </form>
-          <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
-            <input type="hidden" name="direction" value="down" />
-            <button type="submit" class="btn-xs">&#8595;</button>
-          </form>
-          <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/remove" method="post" style="display:inline">
-            <button type="submit" class="btn-xs btn-danger">Remove</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <p class="muted-cell" style="font-size:12px;margin-bottom:1rem">
+    Click to select &middot; Shift+click to select a range &middot; use &#8593;&#8595; to reorder
+  </p>
+  <form action="/admin/albums/{{ album.id }}/photos/remove-bulk" method="post" id="removeForm">
+    <table class="admin-table" id="albumTable">
+      <thead>
+        <tr><th style="width:32px"></th><th>Thumb</th><th>Filename</th><th>Position</th><th>Reorder</th></tr>
+      </thead>
+      <tbody>
+        {% for photo, pos in album_photos %}
+        <tr class="album-row" data-id="{{ photo.id }}">
+          <td>
+            <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="album-row-cb" />
+          </td>
+          <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
+          <td class="filename-cell">{{ photo.filename }}</td>
+          <td class="muted-cell">{{ pos }}</td>
+          <td class="actions-cell">
+            <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
+              <input type="hidden" name="direction" value="up" />
+              <button type="submit" class="btn-xs">&#8593;</button>
+            </form>
+            <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
+              <input type="hidden" name="direction" value="down" />
+              <button type="submit" class="btn-xs">&#8595;</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="photo-select-actions" id="removeActions" style="display:none">
+      <button type="submit" class="btn-danger" id="removeBtn"
+              onclick="return confirm('Remove selected photos from this album?')">Remove selected</button>
+      <button type="button" class="btn-secondary" id="clearRemoveBtn">Clear selection</button>
+    </div>
+  </form>
   {% else %}
   <p class="muted-cell">No photos in this album yet.</p>
   {% endif %}
@@ -109,6 +122,51 @@
 
 {% block scripts %}
 <script>
+// ── Remove selection ────────────────────────────────────────────────────────
+const albumTable = document.getElementById('albumTable');
+if (albumTable) {
+  const rows = Array.from(albumTable.querySelectorAll('.album-row'));
+  const cbs = rows.map(r => r.querySelector('.album-row-cb'));
+  const countEl = document.getElementById('removeCount');
+  const actions = document.getElementById('removeActions');
+  let lastIdx = null;
+
+  function updateRemoveUI() {
+    const n = cbs.filter(c => c.checked).length;
+    countEl.textContent = n > 0 ? n + ' selected' : '';
+    actions.style.display = n > 0 ? 'flex' : 'none';
+  }
+
+  rows.forEach((row, i) => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('form')) return;
+      const cb = cbs[i];
+      if (e.shiftKey && lastIdx !== null) {
+        const from = Math.min(lastIdx, i);
+        const to = Math.max(lastIdx, i);
+        const state = !cb.checked;
+        for (let j = from; j <= to; j++) {
+          cbs[j].checked = state;
+          rows[j].classList.toggle('selected', state);
+        }
+      } else {
+        cb.checked = !cb.checked;
+        row.classList.toggle('selected', cb.checked);
+        lastIdx = i;
+      }
+      updateRemoveUI();
+    });
+  });
+
+  document.getElementById('clearRemoveBtn').addEventListener('click', () => {
+    cbs.forEach((cb, i) => { cb.checked = false; rows[i].classList.remove('selected'); });
+    lastIdx = null;
+    updateRemoveUI();
+  });
+}
+
+// ── Add selection ───────────────────────────────────────────────────────────
 const grid = document.getElementById('photoGrid');
 if (grid) {
   const labels = Array.from(grid.querySelectorAll('.photo-select-item'));

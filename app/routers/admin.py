@@ -250,6 +250,7 @@ async def regen_thumbs(request: Request, db: AsyncSession = Depends(get_db)):
 async def photos_list(
     request: Request,
     page: int = 1,
+    per_page: int = 20,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -257,16 +258,20 @@ async def photos_list(
     except HTTPException:
         return RedirectResponse("/auth/login", status_code=302)
 
+    per_page = per_page if per_page in (20, 50, 100) else 20
     total = (await db.execute(select(func.count()).select_from(Photo))).scalar()
-    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    total_pages = max(1, math.ceil(total / per_page))
+    page = min(page, total_pages)
     photos = (await db.execute(
-        select(Photo).order_by(Photo.uploaded_at.desc()).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+        select(Photo).order_by(Photo.uploaded_at.desc()).offset((page - 1) * per_page).limit(per_page)
     )).scalars().all()
 
     return templates.TemplateResponse("admin/photos.html", _admin_ctx(
         request,
         photos=photos,
         page=page,
+        per_page=per_page,
+        total=total,
         total_pages=total_pages,
     ))
 
@@ -566,6 +571,30 @@ async def remove_photo_from_album(album_id: str, photo_id: str, request: Request
         )
     )
     await db.commit()
+    return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
+
+
+@router.post("/albums/{album_id}/photos/remove-bulk")
+async def remove_photos_from_album_bulk(
+    album_id: str,
+    request: Request,
+    photo_ids: list[str] = Form(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    aid = uuid.UUID(album_id)
+    ids = [uuid.UUID(pid) for pid in photo_ids if pid]
+    if ids:
+        await db.execute(
+            delete(AlbumPhoto).where(
+                and_(AlbumPhoto.album_id == aid, AlbumPhoto.photo_id.in_(ids))
+            )
+        )
+        await db.commit()
     return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
 
 

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.photo import Photo
@@ -69,14 +70,14 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
 
 @router.get("/albums", response_class=HTMLResponse)
 async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
-    q = select(Album).where(Album.is_published == True).order_by(Album.sort_order)
+    q = select(Album).where(Album.is_published == True).order_by(Album.sort_order).options(selectinload(Album.cover_photo))
     albums = (await db.execute(q)).scalars().all()
     return templates.TemplateResponse("public/albums.html", {"request": request, "albums": albums})
 
 
 @router.get("/albums/{slug}", response_class=HTMLResponse)
 async def album_detail(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
-    album = (await db.execute(select(Album).where(and_(Album.slug == slug, Album.is_published == True)))).scalar_one_or_none()
+    album = (await db.execute(select(Album).where(and_(Album.slug == slug, Album.is_published == True)).options(selectinload(Album.cover_photo)))).scalar_one_or_none()
     if not album:
         raise HTTPException(status_code=404)
 
