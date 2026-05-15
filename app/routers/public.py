@@ -245,8 +245,19 @@ async def space_detail(slug: str, request: Request, db: AsyncSession = Depends(g
     if space.is_private and slug not in _get_unlocked_spaces(request):
         return RedirectResponse(f"/spaces/{slug}/unlock", status_code=302)
 
-    albums = [a for a in space.albums if a.is_published and not a.is_private]
-    return templates.TemplateResponse("public/space.html", {"request": request, "space": space, "albums": albums})
+    # All published albums are visible; private albums within an unlocked space
+    # are auto-unlocked so clicking them doesn't ask for a second password.
+    albums = [a for a in space.albums if a.is_published]
+    private_slugs = {a.slug for a in albums if a.is_private}
+
+    unlocked_albums = _get_unlocked(request)
+    newly_unlocked = private_slugs - unlocked_albums
+
+    resp = templates.TemplateResponse("public/space.html", {"request": request, "space": space, "albums": albums})
+    if newly_unlocked:
+        unlocked_albums = unlocked_albums | newly_unlocked
+        resp.set_cookie(ALBUM_COOKIE, _make_cookie(unlocked_albums), httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    return resp
 
 
 @router.get("/albums/{slug}/{token}", response_class=HTMLResponse)
