@@ -423,7 +423,12 @@ async def photo_thumb(photo_id: str, db: AsyncSession = Depends(get_db)):
 
     thumb_path = os.path.join(settings.thumbs_dir, f"{photo_id}.webp")
     if os.path.exists(thumb_path):
-        return FileResponse(thumb_path, media_type="image/webp")
+        mtime = int(os.path.getmtime(thumb_path))
+        return FileResponse(
+            thumb_path,
+            media_type="image/webp",
+            headers={"Cache-Control": "public, max-age=3600", "ETag": f'"{photo_id}-{mtime}"'},
+        )
 
     # Return placeholder
     placeholder = os.path.join("app", "static", "placeholder.webp")

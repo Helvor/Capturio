@@ -126,7 +126,8 @@ async function startRegen() {
         const ev = JSON.parse(line);
         if (ev.done) {
           fill.style.width = '100%';
-          label.textContent = 'Done — ' + ev.total + ' thumbnails regenerated';
+          const errMsg = ev.errors > 0 ? ` (${ev.errors} failed)` : '';
+          label.textContent = `Done — ${ev.total} thumbnails regenerated${errMsg}`;
           btn.disabled = false;
         } else {
           const pct = ev.total > 0 ? Math.round((ev.current / ev.total) * 100) : 0;
