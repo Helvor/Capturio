@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password_hash: str = ""
 
-    photos_dir: str = "/photos"
-    cache_dir: str = "/app/cache"
+    photos_dir: str = "/photos"        # fixed container path, do not override
+    cache_dir: str = "/app/cache"      # fixed container path, do not override
 
     @property
     def database_url(self) -> str:
