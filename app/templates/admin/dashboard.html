@@ -6,6 +6,8 @@
   <h1>Dashboard</h1>
 </div>
 
+<div id="jobsBanner" class="jobs-banner" style="display:none"></div>
+
 <div class="stats-grid">
   <div class="stat-card">
     <span class="stat-value">{{ total_photos }}</span>
@@ -91,4 +93,33 @@
   </table>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const banner = document.getElementById('jobsBanner');
+
+async function pollJobs() {
+  try {
+    const resp = await fetch('/admin/import-jobs');
+    const jobs = await resp.json();
+    if (jobs.length === 0) {
+      banner.style.display = 'none';
+    } else {
+      const lines = jobs.map(j => {
+        if (j.status === 'done') {
+          return `<span class="job-done">&#10003; ${j.folder} — ${j.new} imported, ${j.skipped} skipped</span>`;
+        }
+        const pct = j.total > 0 ? Math.round((j.current / j.total) * 100) : 0;
+        return `<span class="job-running">&#8635; ${j.folder} — ${j.current}/${j.total} (${pct}%)</span>`;
+      });
+      banner.innerHTML = lines.join('');
+      banner.style.display = 'flex';
+    }
+  } catch (_) {}
+}
+
+pollJobs();
+setInterval(pollJobs, 2000);
+</script>
 {% endblock %}
