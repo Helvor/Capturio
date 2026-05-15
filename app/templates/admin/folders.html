@@ -116,7 +116,14 @@
         </div>
       </div>
 
-      <div class="modal-actions">
+      <div id="importProgress" style="display:none">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <p class="progress-label" id="progressLabel">Preparing…</p>
+      </div>
+
+      <div class="modal-actions" id="importActions">
         <button type="submit" id="importSubmitBtn" class="btn-primary">Import</button>
         <button type="button" class="btn-secondary" onclick="closeImport()">Cancel</button>
       </div>
@@ -132,8 +139,10 @@ function openImport(relPath, name) {
   document.getElementById('modalFolderName').textContent = name;
   document.getElementById('newAlbumTitle').value = name;
   document.getElementById('newAlbumSlug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  document.getElementById('importSubmitBtn').textContent = 'Import';
+  document.getElementById('importProgress').style.display = 'none';
+  document.getElementById('importActions').style.display = 'flex';
   document.getElementById('importSubmitBtn').disabled = false;
+  document.getElementById('progressFill').style.width = '0%';
   document.getElementById('importModal').style.display = 'flex';
 }
 
@@ -155,13 +164,59 @@ function toggleNewAlbum() {
 }
 
 document.getElementById('importModal').addEventListener('click', function(e) {
-  if (e.target === this) closeImport();
+  if (e.target === this && document.getElementById('importActions').style.display !== 'none') closeImport();
 });
 
-document.querySelector('#importModal form').addEventListener('submit', function() {
+document.querySelector('#importModal form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const form = e.target;
   const btn = document.getElementById('importSubmitBtn');
-  btn.textContent = 'Importing…';
-  btn.disabled = true;
+  const progress = document.getElementById('importProgress');
+  const actions = document.getElementById('importActions');
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressLabel');
+
+  actions.style.display = 'none';
+  progress.style.display = 'block';
+  label.textContent = 'Starting…';
+
+  const resp = await fetch('/admin/import-folder', {
+    method: 'POST',
+    body: new FormData(form),
+  });
+
+  const parent = resp.headers.get('X-Folder-Parent') || '';
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop();
+    for (const chunk of lines) {
+      const line = chunk.replace(/^data: /, '').trim();
+      if (!line) continue;
+      try {
+        const ev = JSON.parse(line);
+        if (ev.done) {
+          fill.style.width = '100%';
+          label.textContent = `Done — ${ev.new} imported, ${ev.skipped} skipped`;
+          setTimeout(() => {
+            window.location.href = '/admin/folders?path=' + encodeURIComponent(parent)
+              + '&imported=' + ev.new + '&skipped=' + ev.skipped;
+          }, 800);
+        } else {
+          const pct = ev.total > 0 ? Math.round((ev.current / ev.total) * 100) : 0;
+          fill.style.width = pct + '%';
+          label.textContent = `${ev.current} / ${ev.total} — ${ev.filename}`;
+        }
+      } catch (_) {}
+    }
+  }
 });
 </script>
 {% endblock %}

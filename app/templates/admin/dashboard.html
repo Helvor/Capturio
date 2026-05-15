@@ -37,6 +37,27 @@
   </div>
 </div>
 
+{% if announcements %}
+<div class="admin-section">
+  <div class="admin-section-header">
+    <h2>Announcements</h2>
+    <a href="/admin/posts" class="btn-xs">Manage</a>
+  </div>
+  <div class="announcement-list">
+    {% for post in announcements %}
+    <div class="announcement-item">
+      <div class="announcement-meta">
+        {% if post.pinned %}<span class="badge badge-blue">Pinned</span>{% endif %}
+        <span class="announcement-title">{{ post.title }}</span>
+        <span class="muted-cell">{{ post.created_at.strftime('%Y-%m-%d') }}</span>
+      </div>
+      <a href="/admin/posts/{{ post.id }}/edit" class="btn-xs">Edit</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if recent_photos %}
 <div class="admin-section">
   <div class="admin-section-header">

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -23,7 +24,6 @@ def _count_images(folder: str) -> int:
 
 
 def get_folder_tree(base_dir: str, rel_path: str, known_paths: set) -> list[dict]:
-    """Return immediate subfolders of base_dir/rel_path with image counts and import status."""
     abs_path = os.path.realpath(os.path.join(base_dir, rel_path))
     base_real = os.path.realpath(base_dir)
 
@@ -60,20 +60,45 @@ def get_folder_tree(base_dir: str, rel_path: str, known_paths: set) -> list[dict
     return folders
 
 
-async def _ingest_files(files: list[tuple[str, str]], db: AsyncSession) -> dict:
-    """Ingest a list of (filepath, filename) pairs. Returns result dict."""
+def _collect_files(folder: str, recursive: bool) -> list[tuple[str, str]]:
+    files = []
+    if recursive:
+        for root, _, filenames in os.walk(folder):
+            for fname in sorted(filenames):
+                if os.path.splitext(fname)[1].lower() in SUPPORTED_EXTENSIONS:
+                    files.append((os.path.join(root, fname), fname))
+    else:
+        try:
+            for fname in sorted(os.listdir(folder)):
+                if os.path.splitext(fname)[1].lower() not in SUPPORTED_EXTENSIONS:
+                    continue
+                fpath = os.path.join(folder, fname)
+                if os.path.isfile(fpath):
+                    files.append((fpath, fname))
+        except PermissionError:
+            pass
+    return files
+
+
+async def ingest_files_stream(
+    files: list[tuple[str, str]],
+    db: AsyncSession,
+) -> AsyncGenerator[dict, None]:
+    """Ingest files and yield progress dicts after each photo."""
     settings = get_settings()
     new_count = 0
     skipped_count = 0
-    errors = []
     new_photo_ids = []
+    total = len(files)
 
     existing = await db.execute(select(Photo.filepath))
     known_paths = {row[0] for row in existing.all()}
 
-    for fpath, fname in files:
+    for i, (fpath, fname) in enumerate(files):
         if fpath in known_paths:
             skipped_count += 1
+            yield {"done": False, "current": i + 1, "total": total,
+                   "new": new_count, "skipped": skipped_count, "filename": fname, "status": "skipped"}
             continue
         try:
             exif = await asyncio.to_thread(extract_exif, fpath)
@@ -100,34 +125,34 @@ async def _ingest_files(files: list[tuple[str, str]], db: AsyncSession) -> dict:
             db.add(photo)
             new_photo_ids.append(photo_id)
             new_count += 1
+            yield {"done": False, "current": i + 1, "total": total,
+                   "new": new_count, "skipped": skipped_count, "filename": fname, "status": "imported"}
         except Exception as e:
-            errors.append({"file": fpath, "error": str(e)})
+            yield {"done": False, "current": i + 1, "total": total,
+                   "new": new_count, "skipped": skipped_count, "filename": fname, "status": "error", "error": str(e)}
 
     await db.commit()
-    return {"new": new_count, "skipped": skipped_count, "errors": errors, "photo_ids": new_photo_ids}
+    yield {"done": True, "total": total, "new": new_count,
+           "skipped": skipped_count, "photo_ids": [str(p) for p in new_photo_ids]}
+
+
+# kept for backward compat (used by scan_photos_dir path in import_folder)
+async def _ingest_files(files: list[tuple[str, str]], db: AsyncSession) -> dict:
+    result = {}
+    async for event in ingest_files_stream(files, db):
+        result = event
+    photo_ids = [uuid.UUID(p) for p in result.get("photo_ids", [])]
+    return {"new": result["new"], "skipped": result["skipped"],
+            "errors": [], "photo_ids": photo_ids}
 
 
 async def scan_folder_flat(folder: str, db: AsyncSession) -> dict:
-    """Import only the direct image files of a folder, no subdirectories."""
-    files = []
-    try:
-        for fname in sorted(os.listdir(folder)):
-            if os.path.splitext(fname)[1].lower() not in SUPPORTED_EXTENSIONS:
-                continue
-            fpath = os.path.join(folder, fname)
-            if os.path.isfile(fpath):
-                files.append((fpath, fname))
-    except PermissionError:
-        return {"new": 0, "skipped": 0, "errors": [{"file": folder, "error": "Permission denied"}], "photo_ids": []}
+    files = _collect_files(folder, recursive=False)
+    if not files:
+        return {"new": 0, "skipped": 0, "errors": [], "photo_ids": []}
     return await _ingest_files(files, db)
 
 
 async def scan_photos_dir(photos_dir: str, db: AsyncSession) -> dict:
-    """Recursively scan a directory and import all images found."""
-    files = []
-    for root, _, filenames in os.walk(photos_dir):
-        for fname in sorted(filenames):
-            if os.path.splitext(fname)[1].lower() not in SUPPORTED_EXTENSIONS:
-                continue
-            files.append((os.path.join(root, fname), fname))
+    files = _collect_files(photos_dir, recursive=True)
     return await _ingest_files(files, db)
