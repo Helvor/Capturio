@@ -8,9 +8,7 @@ variables. The app receives the correct hash at runtime.
 
 Requires: pip3 install bcrypt
 Or via Docker (no local deps needed):
-  docker run --rm python:3.12-slim sh -c \
-    "pip install bcrypt -q && python3 -c \
-    \"import bcrypt,sys; h=bcrypt.hashpw(sys.argv[1].encode(),bcrypt.gensalt()).decode(); print(h.replace('\$','$$'))\" YOUR_PASSWORD"
+  docker run --rm -v $(pwd)/scripts:/scripts python:3.12-slim python3 /scripts/generate_password_hash.py YOUR_PASSWORD
 """
 import sys
 import subprocess
