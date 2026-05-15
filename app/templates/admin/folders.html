@@ -1,0 +1,160 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Import folders — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Import from folders</h1>
+</div>
+
+{% if request.query_params.get('imported') is not none %}
+<div class="alert alert-info">
+  Import complete &mdash;
+  <strong>{{ request.query_params.get('imported') }}</strong> new photo(s) imported,
+  <strong>{{ request.query_params.get('skipped', 0) }}</strong> already known.
+</div>
+{% endif %}
+
+<!-- Breadcrumb -->
+<nav class="folder-breadcrumb">
+  <a href="/admin/folders" class="crumb">&#127968; Root</a>
+  {% for crumb in breadcrumb %}
+  <span class="crumb-sep">/</span>
+  <a href="/admin/folders?path={{ crumb.rel_path }}" class="crumb">{{ crumb.name }}</a>
+  {% endfor %}
+</nav>
+
+<div class="folder-layout">
+  <!-- Folder list -->
+  <div class="folder-list">
+    {% if folders %}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Folder</th>
+          <th>Images</th>
+          <th>Imported</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for folder in folders %}
+        <tr>
+          <td>
+            <a href="/admin/folders?path={{ folder.rel_path }}" class="folder-link">
+              &#128193; {{ folder.name }}
+              {% if folder.has_subfolders %}<span class="muted-cell"> &rsaquo;</span>{% endif %}
+            </a>
+          </td>
+          <td class="muted-cell">{{ folder.image_count }}</td>
+          <td class="muted-cell">
+            {% if folder.image_count > 0 %}
+              {% if folder.imported_count == folder.image_count %}
+                <span class="badge badge-green">All</span>
+              {% elif folder.imported_count > 0 %}
+                <span class="badge badge-blue">{{ folder.imported_count }}/{{ folder.image_count }}</span>
+              {% else %}
+                <span class="badge badge-grey">None</span>
+              {% endif %}
+            {% else %}
+              <span class="muted-cell">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if folder.image_count > 0 %}
+            <button class="btn-xs" onclick="openImport('{{ folder.rel_path }}', '{{ folder.name }}')">
+              &#8659; Import
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state"><p>No subfolders found.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Import modal -->
+<div id="importModal" class="modal-backdrop" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Import <span id="modalFolderName"></span></h2>
+      <button class="btn-ghost" onclick="closeImport()">&#10005;</button>
+    </div>
+
+    <form action="/admin/import-folder" method="post" class="modal-form">
+      <input type="hidden" name="folder_path" id="modalFolderPath" />
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="recursive" id="recursiveCheck" />
+          Include subfolders recursively
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label>Add to album</label>
+        <select name="album_id" id="albumSelect" onchange="toggleNewAlbum()">
+          <option value="">— Don't add to an album —</option>
+          <option value="__new__">+ Create new album from this folder</option>
+          {% for album in albums %}
+          <option value="{{ album.id }}">{{ album.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div id="newAlbumFields" style="display:none">
+        <div class="form-group">
+          <label>New album title</label>
+          <input type="text" name="new_album_title" id="newAlbumTitle" />
+        </div>
+        <div class="form-group">
+          <label>Slug</label>
+          <input type="text" name="new_album_slug" id="newAlbumSlug" placeholder="my-album-slug" />
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Import</button>
+        <button type="button" class="btn-secondary" onclick="closeImport()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openImport(relPath, name) {
+  document.getElementById('modalFolderPath').value = relPath;
+  document.getElementById('modalFolderName').textContent = name;
+  // Pre-fill album name from folder name
+  document.getElementById('newAlbumTitle').value = name;
+  document.getElementById('newAlbumSlug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  document.getElementById('importModal').style.display = 'flex';
+}
+
+function closeImport() {
+  document.getElementById('importModal').style.display = 'none';
+  document.getElementById('albumSelect').value = '';
+  document.getElementById('newAlbumFields').style.display = 'none';
+}
+
+function toggleNewAlbum() {
+  const val = document.getElementById('albumSelect').value;
+  const fields = document.getElementById('newAlbumFields');
+  if (val === '__new__') {
+    fields.style.display = 'flex';
+    document.querySelector('[name="album_id"]').value = '';
+  } else {
+    fields.style.display = 'none';
+  }
+}
+
+document.getElementById('importModal').addEventListener('click', function(e) {
+  if (e.target === this) closeImport();
+});
+</script>
+{% endblock %}
