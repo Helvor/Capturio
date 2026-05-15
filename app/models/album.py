@@ -33,6 +33,8 @@ class Album(Base):
         UUID(as_uuid=True), ForeignKey("photos.id", ondelete="SET NULL"), nullable=True
     )
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
