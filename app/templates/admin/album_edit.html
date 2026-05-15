@@ -140,19 +140,20 @@ if (albumTable) {
   rows.forEach((row, i) => {
     row.style.cursor = 'pointer';
     row.addEventListener('click', (e) => {
-      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('form')) return;
+      if (e.target.closest('.actions-cell')) return;
       const cb = cbs[i];
+      // if clicking the checkbox itself the browser already toggled it
+      const newChecked = e.target === cb ? cb.checked : !cb.checked;
       if (e.shiftKey && lastIdx !== null) {
         const from = Math.min(lastIdx, i);
         const to = Math.max(lastIdx, i);
-        const state = !cb.checked;
         for (let j = from; j <= to; j++) {
-          cbs[j].checked = state;
-          rows[j].classList.toggle('selected', state);
+          cbs[j].checked = newChecked;
+          rows[j].classList.toggle('selected', newChecked);
         }
       } else {
-        cb.checked = !cb.checked;
-        row.classList.toggle('selected', cb.checked);
+        if (e.target !== cb) cb.checked = newChecked;
+        row.classList.toggle('selected', newChecked);
         lastIdx = i;
       }
       updateRemoveUI();

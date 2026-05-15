@@ -113,20 +113,31 @@ button, input, select, textarea {
 /* ── Announcement strip ────────────────────────────────────────────────────── */
 .announce-strip {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.65rem 2rem;
-  font-size: 12px;
-  color: var(--text-muted);
+  flex-direction: column;
   border-bottom: 1px solid var(--border);
-  letter-spacing: 0.03em;
+  background: rgba(91,156,246,0.05);
 }
+.announce-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 2rem;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.15s;
+  border-top: 1px solid transparent;
+}
+.announce-item:first-child { border-top: none; }
+.announce-item + .announce-item { border-top-color: var(--border); }
+.announce-item:hover { background: rgba(91,156,246,0.08); }
 .announce-dot {
-  width: 5px; height: 5px;
+  width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--blue);
   flex-shrink: 0;
 }
+.announce-text { flex: 1; }
+.announce-arrow { font-size: 12px; color: var(--blue); opacity: 0.7; }
 
 /* ── Filter bar ────────────────────────────────────────────────────────────── */
 .filter-bar {

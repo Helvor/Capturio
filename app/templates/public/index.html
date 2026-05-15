@@ -5,8 +5,11 @@
 {% if announcements %}
 <div class="announce-strip">
   {% for ann in announcements %}
-  <span class="announce-dot"></span>
-  <span>{{ ann.title }}</span>
+  <a href="/announcements" class="announce-item">
+    <span class="announce-dot"></span>
+    <span class="announce-text">{{ ann.title }}</span>
+    <span class="announce-arrow">&rarr;</span>
+  </a>
   {% endfor %}
 </div>
 {% endif %}
