@@ -1,9 +1,12 @@
+import asyncio
 import os
 import math
 
+import bcrypt
 import markdown as md
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
@@ -14,6 +17,23 @@ from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
 from app.config import get_settings
 from app.templates_env import templates
+
+ALBUM_COOKIE = "album_access"
+
+
+def _get_unlocked(request: Request) -> set[str]:
+    token = request.cookies.get(ALBUM_COOKIE)
+    if not token:
+        return set()
+    try:
+        data = jwt.decode(token, get_settings().SECRET_KEY, algorithms=["HS256"])
+        return set(data.get("u", []))
+    except JWTError:
+        return set()
+
+
+def _make_cookie(unlocked: set[str]) -> str:
+    return jwt.encode({"u": list(unlocked)}, get_settings().SECRET_KEY, algorithm="HS256")
 
 router = APIRouter()
 
@@ -53,7 +73,7 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
     ).order_by(Post.created_at.desc())
     announcements = (await db.execute(ann_q)).scalars().all()
 
-    albums_q = select(Album).where(Album.is_published == True).order_by(Album.sort_order)
+    albums_q = select(Album).where(and_(Album.is_published == True, Album.is_private == False)).order_by(Album.sort_order)
     albums = (await db.execute(albums_q)).scalars().all()
 
     data_q, count_q = await _photo_queries(album, db)
@@ -91,16 +111,63 @@ async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession =
 
 @router.get("/albums", response_class=HTMLResponse)
 async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
-    q = select(Album).where(Album.is_published == True).order_by(Album.sort_order).options(selectinload(Album.cover_photo))
+    q = (select(Album)
+         .where(and_(Album.is_published == True, Album.is_private == False))
+         .order_by(Album.sort_order)
+         .options(selectinload(Album.cover_photo)))
     albums = (await db.execute(q)).scalars().all()
     return templates.TemplateResponse("public/albums.html", {"request": request, "albums": albums})
 
 
-@router.get("/albums/{slug}", response_class=HTMLResponse)
-async def album_detail(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
-    album = (await db.execute(select(Album).where(and_(Album.slug == slug, Album.is_published == True)).options(selectinload(Album.cover_photo)))).scalar_one_or_none()
+@router.get("/albums/{slug}/unlock", response_class=HTMLResponse)
+async def album_unlock_page(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+    album = (await db.execute(
+        select(Album).where(and_(Album.slug == slug, Album.is_published == True, Album.is_private == True))
+    )).scalar_one_or_none()
     if not album:
         raise HTTPException(status_code=404)
+    if slug in _get_unlocked(request):
+        return RedirectResponse(f"/albums/{slug}", status_code=302)
+    return templates.TemplateResponse("public/album_unlock.html", {
+        "request": request, "album": album, "error": False,
+    })
+
+
+@router.post("/albums/{slug}/unlock")
+async def album_unlock(slug: str, request: Request, password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    album = (await db.execute(
+        select(Album).where(and_(Album.slug == slug, Album.is_published == True, Album.is_private == True))
+    )).scalar_one_or_none()
+    if not album:
+        raise HTTPException(status_code=404)
+
+    valid = (
+        album.password_hash is not None
+        and await asyncio.to_thread(bcrypt.checkpw, password.encode(), album.password_hash.encode())
+    )
+    if not valid:
+        return templates.TemplateResponse("public/album_unlock.html", {
+            "request": request, "album": album, "error": True,
+        }, status_code=401)
+
+    unlocked = _get_unlocked(request)
+    unlocked.add(slug)
+    resp = RedirectResponse(f"/albums/{slug}", status_code=303)
+    resp.set_cookie(ALBUM_COOKIE, _make_cookie(unlocked), httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    return resp
+
+
+@router.get("/albums/{slug}", response_class=HTMLResponse)
+async def album_detail(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+    album = (await db.execute(
+        select(Album).where(and_(Album.slug == slug, Album.is_published == True))
+        .options(selectinload(Album.cover_photo))
+    )).scalar_one_or_none()
+    if not album:
+        raise HTTPException(status_code=404)
+
+    if album.is_private and slug not in _get_unlocked(request):
+        return RedirectResponse(f"/albums/{slug}/unlock", status_code=302)
 
     q = (
         select(Photo)

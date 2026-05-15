@@ -485,6 +485,48 @@ button, input, select, textarea {
   letter-spacing: 0.04em;
 }
 
+/* ── Album unlock page ─────────────────────────────────────────────────────── */
+.unlock-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--nav-height));
+  padding: 2rem;
+}
+.unlock-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+.unlock-icon { font-size: 32px; margin-bottom: 1rem; opacity: 0.5; }
+.unlock-title { font-size: 20px; font-weight: 400; margin-bottom: 0.4rem; }
+.unlock-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 1.5rem; }
+.unlock-error { font-size: 13px; color: var(--red); margin-bottom: 1rem; }
+.unlock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.unlock-input {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--text);
+  transition: border-color 0.2s;
+}
+.unlock-input:focus { border-color: var(--accent); }
+.unlock-input-error { border-color: var(--red); }
+
+/* ── Form separator ─────────────────────────────────────────────────────────── */
+.form-separator {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+
 /* ── Login page ────────────────────────────────────────────────────────────── */
 .login-body {
   display: flex;

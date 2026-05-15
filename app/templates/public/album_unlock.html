@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ album.title }} — Private{% endblock %}
+
+{% block content %}
+<div class="unlock-wrap">
+  <div class="unlock-card">
+    <div class="unlock-icon">&#128274;</div>
+    <h1 class="unlock-title">{{ album.title }}</h1>
+    <p class="unlock-sub">This album is password protected.</p>
+
+    {% if error %}
+    <p class="unlock-error">Incorrect password. Try again.</p>
+    {% endif %}
+
+    <form action="/albums/{{ album.slug }}/unlock" method="post" class="unlock-form">
+      <input
+        type="password"
+        name="password"
+        placeholder="Password"
+        class="unlock-input {% if error %}unlock-input-error{% endif %}"
+        autofocus
+        required
+      />
+      <button type="submit" class="btn-primary">Unlock</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

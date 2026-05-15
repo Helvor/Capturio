@@ -487,6 +487,9 @@ async def edit_album(
     slug: str = Form(...),
     description: str = Form(default=""),
     is_published: str = Form(default=""),
+    is_private: str = Form(default=""),
+    new_password: str = Form(default=""),
+    remove_password: str = Form(default=""),
     sort_order: int = Form(default=0),
     cover_photo_id: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
@@ -505,8 +508,17 @@ async def edit_album(
     album.slug = slug
     album.description = description or None
     album.is_published = publishing
+    album.is_private = is_private == "on"
     album.sort_order = sort_order
     album.cover_photo_id = uuid.UUID(cover_photo_id) if cover_photo_id else None
+
+    if remove_password == "1":
+        album.password_hash = None
+    elif new_password:
+        import bcrypt as _bcrypt
+        album.password_hash = await asyncio.to_thread(
+            lambda: _bcrypt.hashpw(new_password.encode(), _bcrypt.gensalt(rounds=12)).decode()
+        )
 
     if publishing:
         photo_ids_in_album = (await db.execute(
