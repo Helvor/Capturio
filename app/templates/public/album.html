@@ -2,22 +2,20 @@
 {% block title %}{{ album.title }} — Capturio{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>{{ album.title }}</h1>
-  {% if album.description %}
-  <p class="page-description">{{ album.description }}</p>
-  {% endif %}
+<div class="section-header">
+  <div class="section-header-left">
+    <a href="/albums" class="back-link">&larr; Albums</a>
+    <h1>{{ album.title }}</h1>
+    {% if album.description %}<p class="section-desc">{{ album.description }}</p>{% endif %}
+  </div>
+  <span class="section-count muted">{{ photos | length }} photo{% if photos | length != 1 %}s{% endif %}</span>
 </div>
 
 {% if photos %}
 <div class="photo-grid">
   {% for photo in photos %}
   <a href="/photos/{{ photo.id }}?album={{ album.slug }}" class="photo-card">
-    <img
-      src="/photos/{{ photo.id }}/thumb"
-      alt="{{ photo.title or photo.filename }}"
-      loading="lazy"
-    />
+    <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" loading="lazy" />
   </a>
   {% endfor %}
 </div>
