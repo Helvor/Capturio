@@ -26,7 +26,7 @@
     <span class="stat-label">Announcements</span>
   </div>
   <div class="stat-card">
-    <span class="stat-value">{{ db_size_mb }} MB</span>
+    <span class="stat-value" id="dbSizeVal">{{ db_size_mb }} MB</span>
     <span class="stat-label">Database size</span>
   </div>
 </div>
@@ -40,7 +40,21 @@
     <a href="/admin/photos" class="btn-secondary">Manage photos</a>
     <a href="/admin/albums" class="btn-secondary">Manage albums</a>
     <a href="/admin/posts" class="btn-secondary">Manage posts</a>
+    <button class="btn-secondary" id="dbOptBtn" onclick="runDbOptimize()">&#9881; Optimize DB</button>
   </div>
+</div>
+
+<div id="dbOptSection" style="display:none" class="admin-section">
+  <div class="admin-section-header">
+    <h2>Database optimization</h2>
+  </div>
+  <table class="admin-table" id="dbOptTable">
+    <thead>
+      <tr><th>Table</th><th>Live rows</th><th>Dead rows cleaned</th><th>Size</th><th>Status</th></tr>
+    </thead>
+    <tbody id="dbOptBody"></tbody>
+  </table>
+  <p class="progress-label" id="dbOptLabel" style="margin-top:.75rem"></p>
 </div>
 
 {% if announcements %}
@@ -125,5 +139,74 @@ async function pollJobs() {
 
 pollJobs();
 setInterval(pollJobs, 2000);
+
+async function runDbOptimize() {
+  const btn = document.getElementById('dbOptBtn');
+  const section = document.getElementById('dbOptSection');
+  const tbody = document.getElementById('dbOptBody');
+  const label = document.getElementById('dbOptLabel');
+
+  btn.disabled = true;
+  btn.textContent = '⟳ Running…';
+  section.style.display = 'block';
+  tbody.innerHTML = '';
+  label.textContent = 'Running VACUUM ANALYZE + REINDEX…';
+
+  const rows = {};
+
+  try {
+    const resp = await fetch('/admin/db/optimize', { method: 'POST' });
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop();
+
+      for (const chunk of chunks) {
+        const line = chunk.replace(/^data: /, '').trim();
+        if (!line) continue;
+        try {
+          const ev = JSON.parse(line);
+          if (ev.done) {
+            label.textContent = `Done. Total DB size: ${ev.db_size}`;
+            const sizeEl = document.getElementById('dbSizeVal');
+            if (sizeEl) sizeEl.textContent = ev.db_size;
+            btn.disabled = false;
+            btn.textContent = '⚙ Optimize DB';
+          } else {
+            const tr = rows[ev.table] || (() => {
+              const el = document.createElement('tr');
+              tbody.appendChild(el);
+              rows[ev.table] = el;
+              return el;
+            })();
+            if (ev.ok) {
+              tr.innerHTML = `
+                <td>${ev.table}</td>
+                <td class="muted-cell">${ev.live}</td>
+                <td class="muted-cell">${ev.dead}</td>
+                <td class="muted-cell">${ev.size}</td>
+                <td><span class="badge badge-green">Done</span></td>`;
+            } else {
+              tr.innerHTML = `
+                <td>${ev.table}</td>
+                <td colspan="3" class="muted-cell">${ev.error}</td>
+                <td><span class="badge badge-grey">Error</span></td>`;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    label.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '⚙ Optimize DB';
+  }
+}
 </script>
 {% endblock %}

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, delete
 import markdown as md
 
-from app.database import get_db, AsyncSessionLocal
+from app.database import get_db, AsyncSessionLocal, engine
 from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
@@ -83,6 +83,58 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         recent_photos=recent_photos,
         announcements=announcements,
     ))
+
+
+# ── DB optimize ───────────────────────────────────────────────────────────────
+
+_TABLES = ["photos", "albums", "album_photos", "spaces", "posts", "users"]
+
+
+@router.post("/db/optimize")
+async def db_optimize(request: Request):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    from sqlalchemy import text
+
+    async def stream():
+        results = []
+        # VACUUM ANALYZE + REINDEX each table (must run outside a transaction)
+        for table in _TABLES:
+            try:
+                async with engine.connect() as conn:
+                    await conn.execution_options(isolation_level="AUTOCOMMIT")
+                    await conn.execute(text(f"VACUUM ANALYZE {table}"))
+                    await conn.execute(text(f"REINDEX TABLE {table}"))
+                    row = (await conn.execute(text(
+                        f"SELECT n_live_tup, n_dead_tup, "
+                        f"pg_size_pretty(pg_total_relation_size('{table}')) AS size "
+                        f"FROM pg_stat_user_tables WHERE relname = '{table}'"
+                    ))).mappings().fetchone()
+                results.append({
+                    "table": table,
+                    "live": row["n_live_tup"] if row else "?",
+                    "dead": row["n_dead_tup"] if row else "?",
+                    "size": row["size"] if row else "?",
+                    "ok": True,
+                })
+            except Exception as e:
+                results.append({"table": table, "ok": False, "error": str(e)})
+            yield f"data: {json.dumps(results[-1])}\n\n"
+
+        # Final DB size
+        try:
+            async with engine.connect() as conn:
+                db_size = (await conn.execute(
+                    text("SELECT pg_size_pretty(pg_database_size(current_database()))")
+                )).scalar()
+        except Exception:
+            db_size = "?"
+        yield f"data: {json.dumps({'done': True, 'db_size': db_size})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 # ── Folder browser ────────────────────────────────────────────────────────────
