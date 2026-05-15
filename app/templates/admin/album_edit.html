@@ -1,0 +1,95 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Edit Album — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Edit: {{ album.title }}</h1>
+  <a href="/admin/albums" class="btn-secondary">&larr; Back</a>
+</div>
+
+<div class="admin-section">
+  <h2>Album settings</h2>
+  <form action="/admin/albums/{{ album.id }}/edit" method="post" class="edit-form">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" name="title" value="{{ album.title }}" required />
+    </div>
+    <div class="form-group">
+      <label>Slug</label>
+      <input type="text" name="slug" value="{{ album.slug }}" required />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea name="description" rows="3">{{ album.description or '' }}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Sort order</label>
+      <input type="number" name="sort_order" value="{{ album.sort_order }}" />
+    </div>
+    <div class="form-group">
+      <label>Cover photo ID</label>
+      <input type="text" name="cover_photo_id" value="{{ album.cover_photo_id or '' }}" placeholder="UUID of cover photo" />
+    </div>
+    <div class="form-row">
+      <label class="checkbox-label">
+        <input type="checkbox" name="is_published" {% if album.is_published %}checked{% endif %} />
+        Published
+      </label>
+    </div>
+    <button type="submit" class="btn-primary">Save</button>
+  </form>
+</div>
+
+<div class="admin-section">
+  <h2>Photos in this album</h2>
+  {% if album_photos %}
+  <table class="admin-table">
+    <thead>
+      <tr><th>Thumb</th><th>Filename</th><th>Position</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for photo, pos in album_photos %}
+      <tr>
+        <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
+        <td class="filename-cell">{{ photo.filename }}</td>
+        <td class="muted-cell">{{ pos }}</td>
+        <td class="actions-cell">
+          <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
+            <input type="hidden" name="direction" value="up" />
+            <button type="submit" class="btn-xs">&#8593;</button>
+          </form>
+          <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
+            <input type="hidden" name="direction" value="down" />
+            <button type="submit" class="btn-xs">&#8595;</button>
+          </form>
+          <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/remove" method="post" style="display:inline">
+            <button type="submit" class="btn-xs btn-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted-cell">No photos in this album yet.</p>
+  {% endif %}
+</div>
+
+<div class="admin-section">
+  <h2>Add photos</h2>
+  <form action="/admin/albums/{{ album.id }}/photos/add" method="post">
+    <div class="photo-select-grid">
+      {% for photo in all_photos %}
+      {% if photo.id not in album_photo_ids %}
+      <label class="photo-select-item">
+        <input type="checkbox" name="photo_ids" value="{{ photo.id }}" />
+        <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.filename }}" loading="lazy" />
+        <span class="photo-select-name">{{ photo.filename }}</span>
+      </label>
+      {% endif %}
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn-primary" style="margin-top:1rem">Add selected</button>
+  </form>
+</div>
+{% endblock %}

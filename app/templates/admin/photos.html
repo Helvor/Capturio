@@ -1,0 +1,84 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Photos — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Photos</h1>
+  <div class="header-actions">
+    <form action="/admin/scan" method="post">
+      <button type="submit" class="btn-primary">&#128269; Scan folder</button>
+    </form>
+  </div>
+</div>
+
+{% if scan_new is not none %}
+<div class="alert alert-info">
+  Scan complete &mdash; <strong>{{ scan_new }}</strong> new photo(s) imported, <strong>{{ scan_skipped }}</strong> skipped.
+</div>
+{% endif %}
+
+<div class="admin-section">
+  <h2>Upload photos</h2>
+  <form action="/admin/photos/upload" method="post" enctype="multipart/form-data" class="upload-form" id="uploadForm">
+    <div class="drop-zone" id="dropZone">
+      <p>Drag &amp; drop photos here, or click to browse</p>
+      <input type="file" name="files" multiple accept="image/jpeg,image/png,image/webp" id="fileInput" class="file-input" />
+    </div>
+    <button type="submit" class="btn-primary" id="uploadBtn" style="display:none">Upload</button>
+  </form>
+</div>
+
+<div class="admin-section">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Thumb</th>
+        <th>Filename</th>
+        <th>Camera</th>
+        <th>Status</th>
+        <th>Imported</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for photo in photos %}
+      <tr>
+        <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
+        <td class="filename-cell">{{ photo.filename }}</td>
+        <td class="muted-cell">{{ photo.exif_camera or '—' }}</td>
+        <td>
+          {% if photo.is_published %}
+          <span class="badge badge-green">Published</span>
+          {% else %}
+          <span class="badge badge-grey">Draft</span>
+          {% endif %}
+        </td>
+        <td class="muted-cell">{{ photo.uploaded_at.strftime('%Y-%m-%d') }}</td>
+        <td class="actions-cell">
+          <a href="/admin/photos/{{ photo.id }}/edit" class="btn-xs">Edit</a>
+          <form action="/admin/photos/{{ photo.id }}/toggle-publish" method="post" style="display:inline">
+            <button type="submit" class="btn-xs">{% if photo.is_published %}Unpublish{% else %}Publish{% endif %}</button>
+          </form>
+          <form action="/admin/photos/{{ photo.id }}/delete" method="post" style="display:inline"
+                onsubmit="return confirm('Delete this photo entry?')">
+            <button type="submit" class="btn-xs btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}" class="page-link">&larr; Prev</a>
+    {% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}" class="page-link">Next &rarr;</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

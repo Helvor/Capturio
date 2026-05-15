@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Gallery — Capturio{% endblock %}
+
+{% block content %}
+{% if announcements %}
+<section class="announcements-bar">
+  {% for ann in announcements %}
+  <div class="announcement-banner">
+    <strong>{{ ann.title }}</strong>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="gallery-header">
+  <div class="album-filters">
+    <a href="/" class="filter-pill {% if not current_album %}active{% endif %}">All</a>
+    {% for album in albums %}
+    <a href="/?album={{ album.slug }}" class="filter-pill {% if current_album == album.slug %}active{% endif %}">{{ album.title }}</a>
+    {% endfor %}
+  </div>
+</section>
+
+{% if photos %}
+<div class="photo-grid">
+  {% for photo in photos %}
+  <a href="/photos/{{ photo.id }}{% if current_album %}?album={{ current_album }}{% endif %}" class="photo-card">
+    <img
+      src="/photos/{{ photo.id }}/thumb"
+      alt="{{ photo.title or photo.filename }}"
+      loading="lazy"
+    />
+  </a>
+  {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<nav class="pagination">
+  {% if page > 1 %}
+  <a href="?page={{ page - 1 }}{% if current_album %}&album={{ current_album }}{% endif %}" class="page-link">&larr; Prev</a>
+  {% endif %}
+  <span class="page-info">{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a href="?page={{ page + 1 }}{% if current_album %}&album={{ current_album }}{% endif %}" class="page-link">Next &rarr;</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <p>No photos yet.</p>
+</div>
+{% endif %}
+{% endblock %}

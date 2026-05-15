@@ -1,0 +1,70 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{% if post %}Edit Post{% else %}New Post{% endif %} — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>{% if post %}Edit: {{ post.title }}{% else %}New {{ post_type | capitalize }}{% endif %}</h1>
+  <a href="/admin/posts" class="btn-secondary">&larr; Back</a>
+</div>
+
+<form action="{% if post %}/admin/posts/{{ post.id }}/edit{% else %}/admin/posts/create{% endif %}"
+      method="post" class="edit-form post-edit-form">
+  <div class="form-group">
+    <label>Title</label>
+    <input type="text" name="title" value="{{ post.title if post else '' }}" required />
+  </div>
+  <div class="form-group">
+    <label>Slug</label>
+    <input type="text" name="slug" value="{{ post.slug if post else '' }}" required />
+  </div>
+  <div class="form-group">
+    <label>Type</label>
+    <select name="post_type">
+      <option value="announcement" {% if post_type == 'announcement' %}selected{% endif %}>Announcement</option>
+      <option value="page" {% if post_type == 'page' %}selected{% endif %}>Page</option>
+    </select>
+  </div>
+  <div class="post-editor-layout">
+    <div class="form-group" style="flex:1">
+      <label>Body (Markdown)</label>
+      <textarea name="body" id="postBody" rows="20" class="markdown-input">{{ post.body if post else '' }}</textarea>
+    </div>
+    <div class="form-group" style="flex:1">
+      <label>Preview</label>
+      <div id="markdownPreview" class="markdown-preview prose-content"></div>
+    </div>
+  </div>
+  <div class="form-row">
+    <label class="checkbox-label">
+      <input type="checkbox" name="is_published" {% if post and post.is_published %}checked{% endif %} />
+      Published
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" name="pinned" {% if post and post.pinned %}checked{% endif %} />
+      Pinned
+    </label>
+  </div>
+  <button type="submit" class="btn-primary">Save</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const body = document.getElementById('postBody');
+  const preview = document.getElementById('markdownPreview');
+  function renderPreview() {
+    const lines = body.value.split('\n');
+    // Very simple client-side markdown hint — server renders the real thing
+    preview.innerHTML = body.value
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+      .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/\n/g,'<br>');
+  }
+  body.addEventListener('input', renderPreview);
+  renderPreview();
+</script>
+{% endblock %}

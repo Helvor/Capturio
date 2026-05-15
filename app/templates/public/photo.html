@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ photo.title or photo.filename }} — Capturio{% endblock %}
+
+{% block content %}
+<div class="photo-viewer">
+  <div class="photo-viewer-image">
+    <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" />
+  </div>
+
+  <div class="photo-viewer-meta">
+    <div class="photo-viewer-header">
+      <div>
+        {% if photo.title %}<h1 class="photo-title">{{ photo.title }}</h1>{% endif %}
+        {% if photo.description %}<p class="photo-description">{{ photo.description }}</p>{% endif %}
+      </div>
+      {% if photo.download_enabled %}
+      <a href="/photos/{{ photo.id }}/download" class="btn-download">&#8681; Download</a>
+      {% endif %}
+    </div>
+
+    {% if photo.exif_camera or photo.exif_lens or photo.taken_at or photo.exif_width %}
+    <div class="exif-panel">
+      <h2 class="exif-title">EXIF</h2>
+      <dl class="exif-grid">
+        {% if photo.exif_camera %}
+        <dt>&#128247; Camera</dt><dd>{{ photo.exif_camera }}</dd>
+        {% endif %}
+        {% if photo.exif_lens %}
+        <dt>&#128269; Lens</dt><dd>{{ photo.exif_lens }}</dd>
+        {% endif %}
+        {% if photo.exif_focal_length %}
+        <dt>&#128270; Focal length</dt><dd>{{ photo.exif_focal_length }}</dd>
+        {% endif %}
+        {% if photo.exif_shutter_speed %}
+        <dt>&#9201; Shutter</dt><dd>{{ photo.exif_shutter_speed }}</dd>
+        {% endif %}
+        {% if photo.exif_aperture %}
+        <dt>&#9900; Aperture</dt><dd>{{ photo.exif_aperture }}</dd>
+        {% endif %}
+        {% if photo.exif_iso %}
+        <dt>&#128161; ISO</dt><dd>{{ photo.exif_iso }}</dd>
+        {% endif %}
+        {% if photo.exif_width and photo.exif_height %}
+        <dt>&#9974; Dimensions</dt><dd>{{ photo.exif_width }} &times; {{ photo.exif_height }} px</dd>
+        {% endif %}
+        {% if photo.file_size_bytes %}
+        <dt>&#128190; File size</dt><dd>{{ photo.file_size_bytes | filesize }}</dd>
+        {% endif %}
+        {% if photo.taken_at %}
+        <dt>&#128197; Taken</dt><dd>{{ photo.taken_at.strftime('%B %d, %Y') }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+    {% endif %}
+
+    {% if prev_photo or next_photo %}
+    <nav class="photo-nav">
+      {% if prev_photo %}
+      <a href="/photos/{{ prev_photo.id }}{% if album_slug %}?album={{ album_slug }}{% endif %}" class="photo-nav-link">&larr; Previous</a>
+      {% else %}
+      <span></span>
+      {% endif %}
+      {% if album %}
+      <a href="/albums/{{ album.slug }}" class="photo-nav-link album-link">&#9776; {{ album.title }}</a>
+      {% endif %}
+      {% if next_photo %}
+      <a href="/photos/{{ next_photo.id }}{% if album_slug %}?album={{ album_slug }}{% endif %}" class="photo-nav-link">Next &rarr;</a>
+      {% else %}
+      <span></span>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

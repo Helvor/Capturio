@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}News — Capturio{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>News</h1>
+</div>
+
+{% if posts %}
+<div class="posts-list">
+  {% for post in posts %}
+  <article class="post-card">
+    <div class="post-card-header">
+      <h2 class="post-card-title">
+        {{ post.title }}
+        {% if post.pinned %}<span class="badge-pinned">Pinned</span>{% endif %}
+      </h2>
+      <time class="post-card-date">{{ post.created_at.strftime('%B %d, %Y') }}</time>
+    </div>
+    <div class="post-card-body">
+      {{ post.body | markdown | safe }}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state"><p>No announcements yet.</p></div>
+{% endif %}
+{% endblock %}

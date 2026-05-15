@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}About — Capturio{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{% if post %}{{ post.title }}{% else %}About{% endif %}</h1>
+</div>
+<div class="prose-content">
+  {% if post %}
+  {{ body_html | safe }}
+  {% else %}
+  <p class="muted">No about page has been published yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Albums — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Albums</h1>
+</div>
+
+<div class="admin-section">
+  <h2>Create album</h2>
+  <form action="/admin/albums/create" method="post" class="inline-form">
+    <input type="text" name="title" placeholder="Title" required />
+    <input type="text" name="slug" placeholder="slug-url" required />
+    <input type="text" name="description" placeholder="Description (optional)" />
+    <button type="submit" class="btn-primary">Create</button>
+  </form>
+</div>
+
+<div class="admin-section">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Slug</th>
+        <th>Status</th>
+        <th>Order</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for album in albums %}
+      <tr>
+        <td>{{ album.title }}</td>
+        <td class="muted-cell">{{ album.slug }}</td>
+        <td>
+          {% if album.is_published %}
+          <span class="badge badge-green">Published</span>
+          {% else %}
+          <span class="badge badge-grey">Draft</span>
+          {% endif %}
+        </td>
+        <td class="muted-cell">{{ album.sort_order }}</td>
+        <td class="actions-cell">
+          <a href="/admin/albums/{{ album.id }}/edit" class="btn-xs">Edit</a>
+          <form action="/admin/albums/{{ album.id }}/delete" method="post" style="display:inline"
+                onsubmit="return confirm('Delete album?')">
+            <button type="submit" class="btn-xs btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Posts — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Posts &amp; Pages</h1>
+  <div class="header-actions">
+    <a href="/admin/posts/create?post_type=announcement" class="btn-primary">+ Announcement</a>
+    <a href="/admin/posts/create?post_type=page" class="btn-secondary">+ Page</a>
+  </div>
+</div>
+
+<div class="admin-section">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Slug</th>
+        <th>Type</th>
+        <th>Pinned</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for post in posts %}
+      <tr>
+        <td>{{ post.title }}</td>
+        <td class="muted-cell">{{ post.slug }}</td>
+        <td><span class="badge badge-blue">{{ post.post_type.value }}</span></td>
+        <td>{% if post.pinned %}&#128204;{% endif %}</td>
+        <td>
+          {% if post.is_published %}
+          <span class="badge badge-green">Published</span>
+          {% else %}
+          <span class="badge badge-grey">Draft</span>
+          {% endif %}
+        </td>
+        <td class="muted-cell">{{ post.created_at.strftime('%Y-%m-%d') }}</td>
+        <td class="actions-cell">
+          <a href="/admin/posts/{{ post.id }}/edit" class="btn-xs">Edit</a>
+          <form action="/admin/posts/{{ post.id }}/delete" method="post" style="display:inline"
+                onsubmit="return confirm('Delete this post?')">
+            <button type="submit" class="btn-xs btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
