@@ -117,44 +117,35 @@
 <script>
 const banner = document.getElementById('jobsBanner');
 
-async function pollJobs() {
+async function pollBanner() {
+  const lines = [];
   try {
-    const resp = await fetch('/admin/import-jobs');
-    const jobs = await resp.json();
-    if (jobs.length === 0) {
-      banner.style.display = 'none';
-    } else {
-      const lines = jobs.map(j => {
-        if (j.status === 'done') {
-          return `<span class="job-done">&#10003; ${j.folder} — ${j.new} imported, ${j.skipped} skipped</span>`;
-        }
+    const jobs = await (await fetch('/admin/import-jobs')).json();
+    for (const j of jobs) {
+      if (j.status === 'done') {
+        lines.push(`<span class="job-done">&#10003; ${j.folder} — ${j.new} imported, ${j.skipped} skipped</span>`);
+      } else {
         const pct = j.total > 0 ? Math.round((j.current / j.total) * 100) : 0;
-        return `<span class="job-running">&#8635; ${j.folder} — ${j.current}/${j.total} (${pct}%)</span>`;
-      });
-      banner.innerHTML = lines.join('');
-      banner.style.display = 'flex';
+        lines.push(`<span class="job-running">&#8635; ${j.folder} — ${j.current}/${j.total} (${pct}%)</span>`);
+      }
     }
   } catch (_) {}
-}
-
-pollJobs();
-setInterval(pollJobs, 2000);
-
-async function pollRegen() {
   try {
-    const resp = await fetch('/admin/regen-job');
-    const job = await resp.json();
-    if (!job || !job.status) return;
-    if (job.status === 'running') {
+    const job = await (await fetch('/admin/regen-job')).json();
+    if (job && job.status === 'running') {
       const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
-      banner.innerHTML += `<span class="job-running">&#8635; Regen thumbnails — ${job.current}/${job.total} (${pct}%)</span>`;
-      banner.style.display = 'flex';
+      lines.push(`<span class="job-running">&#8635; Regen thumbnails — ${job.current}/${job.total} (${pct}%)</span>`);
+    } else if (job && job.status === 'done') {
+      const errMsg = job.errors > 0 ? ` — ${job.errors} failed` : '';
+      lines.push(`<span class="job-done">&#10003; Regen done — ${job.total} thumbnails${errMsg}</span>`);
     }
   } catch (_) {}
+  banner.innerHTML = lines.join('');
+  banner.style.display = lines.length ? 'flex' : 'none';
 }
 
-pollRegen();
-setInterval(pollRegen, 2000);
+pollBanner();
+setInterval(pollBanner, 2000);
 
 async function runDbOptimize() {
   const btn = document.getElementById('dbOptBtn');
