@@ -9,8 +9,14 @@
           onsubmit="return confirm('Publish all draft photos?')">
       <button type="submit" class="btn-secondary">Publish all</button>
     </form>
+    <button class="btn-secondary" id="regenBtn" onclick="startRegen()">Regenerate thumbnails</button>
     <a href="/admin/folders" class="btn-primary">&#128193; Import from folder</a>
   </div>
+</div>
+
+<div id="regenProgress" style="display:none; margin-bottom:1.5rem">
+  <div class="progress-bar-track"><div class="progress-bar-fill" id="regenFill"></div></div>
+  <p class="progress-label" id="regenLabel"></p>
 </div>
 
 <div class="admin-section">
@@ -77,4 +83,48 @@
   </nav>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function startRegen() {
+  if (!confirm('Regenerate all thumbnails at higher quality? This may take a while.')) return;
+  const btn = document.getElementById('regenBtn');
+  const progress = document.getElementById('regenProgress');
+  const fill = document.getElementById('regenFill');
+  const label = document.getElementById('regenLabel');
+  btn.disabled = true;
+  progress.style.display = 'block';
+  label.textContent = 'Starting…';
+
+  const resp = await fetch('/admin/photos/regen-thumbs', { method: 'POST' });
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop();
+    for (const chunk of lines) {
+      const line = chunk.replace(/^data: /, '').trim();
+      if (!line) continue;
+      try {
+        const ev = JSON.parse(line);
+        if (ev.done) {
+          fill.style.width = '100%';
+          label.textContent = 'Done — ' + ev.total + ' thumbnails regenerated';
+          btn.disabled = false;
+        } else {
+          const pct = ev.total > 0 ? Math.round((ev.current / ev.total) * 100) : 0;
+          fill.style.width = pct + '%';
+          label.textContent = ev.current + ' / ' + ev.total;
+        }
+      } catch (_) {}
+    }
+  }
+}
+</script>
 {% endblock %}
