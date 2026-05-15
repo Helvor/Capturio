@@ -102,11 +102,11 @@
       <div id="newAlbumFields" style="display:none">
         <div class="form-group">
           <label>New album title</label>
-          <input type="text" name="new_album_title" id="newAlbumTitle" />
+          <input type="text" name="new_album_title" id="newAlbumTitle" disabled />
         </div>
         <div class="form-group">
           <label>Slug</label>
-          <input type="text" name="new_album_slug" id="newAlbumSlug" placeholder="my-album-slug" />
+          <input type="text" name="new_album_slug" id="newAlbumSlug" placeholder="my-album-slug" disabled />
         </div>
       </div>
 
@@ -140,11 +140,16 @@ function closeImport() {
 function toggleNewAlbum() {
   const val = document.getElementById('albumSelect').value;
   const fields = document.getElementById('newAlbumFields');
+  const titleEl = document.getElementById('newAlbumTitle');
+  const slugEl = document.getElementById('newAlbumSlug');
   if (val === '__new__') {
     fields.style.display = 'flex';
-    document.querySelector('[name="album_id"]').value = '';
+    titleEl.disabled = false;
+    slugEl.disabled = false;
   } else {
     fields.style.display = 'none';
+    titleEl.disabled = true;
+    slugEl.disabled = true;
   }
 }
 
