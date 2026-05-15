@@ -26,14 +26,14 @@ def _get_unlocked(request: Request) -> set[str]:
     if not token:
         return set()
     try:
-        data = jwt.decode(token, get_settings().SECRET_KEY, algorithms=["HS256"])
+        data = jwt.decode(token, get_settings().secret_key, algorithms=["HS256"])
         return set(data.get("u", []))
     except JWTError:
         return set()
 
 
 def _make_cookie(unlocked: set[str]) -> str:
-    return jwt.encode({"u": list(unlocked)}, get_settings().SECRET_KEY, algorithm="HS256")
+    return jwt.encode({"u": list(unlocked)}, get_settings().secret_key, algorithm="HS256")
 
 router = APIRouter()
 
@@ -43,6 +43,8 @@ PAGE_SIZE = 24
 
 async def _photo_queries(album: str | None, db: AsyncSession):
     """Return (data_query, count_query) for the given album filter."""
+    from sqlalchemy import exists as sa_exists, or_
+
     if album:
         album_obj = (await db.execute(select(Album).where(Album.slug == album))).scalar_one_or_none()
         if album_obj:
@@ -59,8 +61,25 @@ async def _photo_queries(album: str | None, db: AsyncSession):
                 .where(and_(AlbumPhoto.album_id == aid, Photo.is_published == True))
             )
             return data_q, count_q
-    data_q = select(Photo).where(Photo.is_published == True).order_by(Photo.uploaded_at.desc())
-    count_q = select(func.count(Photo.id)).where(Photo.is_published == True)
+
+    # Main gallery: exclude photos that belong ONLY to private albums.
+    # A photo is visible if it's not in any album, OR it's in at least one
+    # public (non-private, published) album.
+    in_public_album = sa_exists().where(
+        and_(
+            AlbumPhoto.photo_id == Photo.id,
+            AlbumPhoto.album_id == Album.id,
+            Album.is_private == False,
+            Album.is_published == True,
+        )
+    )
+    not_in_any_album = ~sa_exists().where(AlbumPhoto.photo_id == Photo.id)
+    gallery_filter = and_(
+        Photo.is_published == True,
+        or_(not_in_any_album, in_public_album),
+    )
+    data_q = select(Photo).where(gallery_filter).order_by(Photo.uploaded_at.desc())
+    count_q = select(func.count(Photo.id)).where(gallery_filter)
     return data_q, count_q
 
 
