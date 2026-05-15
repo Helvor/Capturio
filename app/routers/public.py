@@ -16,6 +16,7 @@ from app.database import get_db
 from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
+from app.models.space import Space
 from app.config import get_settings
 from app.services.album_token import share_token
 from app.templates_env import templates
@@ -132,12 +133,42 @@ async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession =
 
 @router.get("/albums", response_class=HTMLResponse)
 async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
+    # Published spaces with their published albums
+    spaces = (await db.execute(
+        select(Space)
+        .where(Space.is_published == True)
+        .options(selectinload(Space.albums).selectinload(Album.cover_photo))
+        .order_by(Space.sort_order)
+    )).scalars().all()
+    # Filter albums within spaces to only published, non-private ones
+    for space in spaces:
+        space.albums = [a for a in space.albums if a.is_published and not a.is_private]
+
+    # Published albums not in any space
     q = (select(Album)
-         .where(and_(Album.is_published == True, Album.is_private == False))
+         .where(and_(Album.is_published == True, Album.is_private == False, Album.space_id == None))
          .order_by(Album.sort_order)
          .options(selectinload(Album.cover_photo)))
-    albums = (await db.execute(q)).scalars().all()
-    return templates.TemplateResponse("public/albums.html", {"request": request, "albums": albums})
+    standalone_albums = (await db.execute(q)).scalars().all()
+    return templates.TemplateResponse("public/albums.html", {
+        "request": request,
+        "spaces": spaces,
+        "standalone_albums": standalone_albums,
+    })
+
+
+@router.get("/spaces/{slug}", response_class=HTMLResponse)
+async def space_detail(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+    space = (await db.execute(
+        select(Space)
+        .where(and_(Space.slug == slug, Space.is_published == True))
+        .options(selectinload(Space.albums).selectinload(Album.cover_photo))
+    )).scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404)
+
+    space.albums = [a for a in space.albums if a.is_published and not a.is_private]
+    return templates.TemplateResponse("public/space.html", {"request": request, "space": space})
 
 
 @router.get("/albums/{slug}/{token}", response_class=HTMLResponse)

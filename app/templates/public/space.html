@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ space.title }} — Capturio{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <a href="/albums" class="breadcrumb-back">&larr; All albums</a>
+    <h1>{{ space.title }}</h1>
+    {% if space.description %}
+    <p class="section-desc">{{ space.description }}</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if space.albums %}
+<div class="albums-grid">
+  {% for album in space.albums %}
+  <a href="/albums/{{ album.slug }}" class="album-card">
+    <div class="album-card-cover">
+      {% if album.cover_photo %}
+      <img src="/photos/{{ album.cover_photo.id }}/thumb" alt="{{ album.title }}" loading="lazy" />
+      {% else %}
+      <div class="album-cover-placeholder"></div>
+      {% endif %}
+    </div>
+    <div class="album-card-body">
+      <span class="album-card-title">{{ album.title }}</span>
+      {% if album.description %}
+      <span class="album-card-desc">{{ album.description }}</span>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state"><p>No albums in this space yet.</p></div>
+{% endif %}
+{% endblock %}

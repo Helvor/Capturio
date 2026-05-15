@@ -16,6 +16,7 @@ from app.database import get_db, AsyncSessionLocal
 from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
+from app.models.space import Space
 from app.routers.auth import get_current_admin
 from app.services.scanner import get_folder_tree, ingest_files_stream, _collect_files
 from app.services.exif import extract_exif
@@ -431,8 +432,12 @@ async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         return RedirectResponse("/auth/login", status_code=302)
 
-    albums = (await db.execute(select(Album).order_by(Album.sort_order))).scalars().all()
-    return templates.TemplateResponse("admin/albums.html", _admin_ctx(request, albums=albums))
+    from sqlalchemy.orm import selectinload
+    albums = (await db.execute(
+        select(Album).options(selectinload(Album.space)).order_by(Album.sort_order)
+    )).scalars().all()
+    spaces = (await db.execute(select(Space).order_by(Space.sort_order))).scalars().all()
+    return templates.TemplateResponse("admin/albums.html", _admin_ctx(request, albums=albums, spaces=spaces))
 
 
 @router.post("/albums/create")
@@ -441,6 +446,7 @@ async def create_album(
     title: str = Form(...),
     slug: str = Form(...),
     description: str = Form(default=""),
+    space_id: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -448,7 +454,12 @@ async def create_album(
     except HTTPException:
         return RedirectResponse("/auth/login", status_code=302)
 
-    album = Album(title=title, slug=slug, description=description or None)
+    album = Album(
+        title=title,
+        slug=slug,
+        description=description or None,
+        space_id=uuid.UUID(space_id) if space_id else None,
+    )
     db.add(album)
     await db.commit()
     return RedirectResponse("/admin/albums", status_code=303)
@@ -484,10 +495,11 @@ async def edit_album_form(album_id: str, request: Request, db: AsyncSession = De
         tok = share_token(_gs().secret_key, album.password_hash)
         share_link = f"/albums/{album.slug}/{tok}"
 
+    spaces = (await db.execute(select(Space).order_by(Space.sort_order))).scalars().all()
     return templates.TemplateResponse("admin/album_edit.html", _admin_ctx(
         request, album=album, album_photos=album_photos,
         available_photos=available_photos, album_photo_ids=album_photo_ids,
-        share_link=share_link,
+        share_link=share_link, spaces=spaces,
     ))
 
 
@@ -504,6 +516,7 @@ async def edit_album(
     remove_password: str = Form(default=""),
     sort_order: int = Form(default=0),
     cover_photo_id: str = Form(default=""),
+    space_id: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -523,6 +536,7 @@ async def edit_album(
     album.is_private = is_private == "on"
     album.sort_order = sort_order
     album.cover_photo_id = uuid.UUID(cover_photo_id) if cover_photo_id else None
+    album.space_id = uuid.UUID(space_id) if space_id else None
 
     if remove_password == "1":
         album.password_hash = None
@@ -676,6 +690,101 @@ async def delete_album(album_id: str, request: Request, db: AsyncSession = Depen
         await db.commit()
 
     return RedirectResponse("/admin/albums", status_code=303)
+
+
+# ── Spaces ────────────────────────────────────────────────────────────────────
+
+@router.get("/spaces", response_class=HTMLResponse)
+async def spaces_list(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    from sqlalchemy.orm import selectinload
+    spaces = (await db.execute(
+        select(Space).options(selectinload(Space.albums)).order_by(Space.sort_order)
+    )).scalars().all()
+    return templates.TemplateResponse("admin/spaces.html", _admin_ctx(request, spaces=spaces))
+
+
+@router.post("/spaces/create")
+async def create_space(
+    request: Request,
+    title: str = Form(...),
+    slug: str = Form(...),
+    description: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    space = Space(title=title, slug=slug, description=description or None)
+    db.add(space)
+    await db.commit()
+    return RedirectResponse("/admin/spaces", status_code=303)
+
+
+@router.get("/spaces/{space_id}/edit", response_class=HTMLResponse)
+async def edit_space_form(space_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    from sqlalchemy.orm import selectinload
+    space = (await db.execute(
+        select(Space).where(Space.id == uuid.UUID(space_id)).options(selectinload(Space.albums))
+    )).scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404)
+
+    return templates.TemplateResponse("admin/space_edit.html", _admin_ctx(request, space=space))
+
+
+@router.post("/spaces/{space_id}/edit")
+async def edit_space(
+    space_id: str,
+    request: Request,
+    title: str = Form(...),
+    slug: str = Form(...),
+    description: str = Form(default=""),
+    is_published: str = Form(default=""),
+    sort_order: int = Form(default=0),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    space = (await db.execute(select(Space).where(Space.id == uuid.UUID(space_id)))).scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404)
+
+    space.title = title
+    space.slug = slug
+    space.description = description or None
+    space.is_published = is_published == "on"
+    space.sort_order = sort_order
+    await db.commit()
+    return RedirectResponse("/admin/spaces", status_code=303)
+
+
+@router.post("/spaces/{space_id}/delete")
+async def delete_space(space_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    space = (await db.execute(select(Space).where(Space.id == uuid.UUID(space_id)))).scalar_one_or_none()
+    if space:
+        await db.delete(space)
+        await db.commit()
+    return RedirectResponse("/admin/spaces", status_code=303)
 
 
 # ── Posts ──────────────────────────────────────────────────────────────────────
