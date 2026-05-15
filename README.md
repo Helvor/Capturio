@@ -68,13 +68,13 @@ Copy the output (`$2b$12$...`) into `ADMIN_PASSWORD_HASH` in your `.env`.
 
 ### 4. Create the cache folder
 
+If you didn't set `CACHE_HOST_DIR` in your `.env`, create the default folder:
+
 ```bash
 mkdir -p cache
 ```
 
-The `cache/` folder is required — Docker mounts it to store generated thumbnails.
-
-> **Note:** If you set `PHOTOS_HOST_DIR` to an existing folder on your NAS (e.g. `/volume2/photos`), you do **not** need to create a `photos/` folder. The default `./photos` is only used as a fallback when `PHOTOS_HOST_DIR` is not set.
+> **Note:** If you set `CACHE_HOST_DIR` to a path on your NAS (e.g. `/volume2/docker/capturio/cache`), Docker will use that instead and you don't need to create `./cache` manually. Same logic applies to `PHOTOS_HOST_DIR` — no need to create `./photos` if you already have a photos folder on your NAS.
 
 ### 5. Start
 
