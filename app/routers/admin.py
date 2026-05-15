@@ -238,14 +238,14 @@ async def regen_thumbs(request: Request, db: AsyncSession = Depends(get_db)):
 
     async def stream():
         total = len(photos)
+        errors = []
         for i, (photo_id, filepath) in enumerate(photos):
-            try:
-                await asyncio.to_thread(generate_thumbnail, str(photo_id), filepath, settings.thumbs_dir, True)
-                status = "ok"
-            except Exception as e:
-                status = f"error: {e}"
+            result = await asyncio.to_thread(generate_thumbnail, str(photo_id), filepath, settings.thumbs_dir, True)
+            status = "ok" if result else f"failed: {filepath}"
+            if not result:
+                errors.append(filepath)
             yield f"data: {json.dumps({'current': i+1, 'total': total, 'status': status})}\n\n"
-        yield f"data: {json.dumps({'done': True, 'total': total})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'total': total, 'errors': len(errors)})}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 
