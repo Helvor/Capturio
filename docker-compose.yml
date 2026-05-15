@@ -16,7 +16,7 @@ services:
     ports:
       - "${APP_PORT:-8000}:8000"
     volumes:
-      - ./photos:/photos
+      - ${PHOTOS_HOST_DIR:-./photos}:/photos
       - ./cache:/app/cache
     depends_on:
       db:
