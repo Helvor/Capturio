@@ -68,11 +68,15 @@ docker run --rm python:3.12-slim sh -c \
 
 Copy the output (`$2b$12$...`) into `ADMIN_PASSWORD_HASH` in your `.env`.
 
-### 4. Create local folders
+### 4. Create the cache folder
 
 ```bash
-mkdir -p photos cache
+mkdir -p cache
 ```
+
+The `cache/` folder is required — Docker mounts it to store generated thumbnails.
+
+> **Note:** If you set `PHOTOS_HOST_DIR` to an existing folder on your NAS (e.g. `/volume2/photos`), you do **not** need to create a `photos/` folder. The default `./photos` is only used as a fallback when `PHOTOS_HOST_DIR` is not set.
 
 ### 5. Start
 
