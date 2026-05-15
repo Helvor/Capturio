@@ -59,12 +59,10 @@ python3 scripts/generate_password_hash.py yourpassword
 Or via Docker if you don't have Python locally:
 
 ```bash
-docker run --rm python:3.12-slim sh -c \
-  "pip install bcrypt -q && python3 -c \
-  \"import bcrypt, sys; print(bcrypt.hashpw(sys.argv[1].encode(), bcrypt.gensalt()).decode())\" yourpassword"
+docker run --rm -v $(pwd)/scripts:/scripts python:3.12-slim python3 /scripts/generate_password_hash.py yourpassword
 ```
 
-Copy the output (`$2b$12$...`) into `ADMIN_PASSWORD_HASH` in your `.env`.
+The output looks like `$$2b$$12$$...` — the `$$` are intentional. Docker Compose uses `$$` to represent a literal `$`, so paste the value exactly as-is into `ADMIN_PASSWORD_HASH` in your `.env`.
 
 ### 4. Create the cache folder
 
@@ -89,8 +87,8 @@ Database migrations run automatically on startup.
 ### 6. First use
 
 1. Open `http://localhost:8000/admin` → sign in
-2. Drop some JPEG / PNG / WEBP files into the `./photos/` folder
-3. Click **Scan photos folder** → photos are imported with EXIF & thumbnails
+2. Go to **Import** → browse your photos folder → import the folders you want into albums
+3. Or drop JPEG / PNG / WEBP files directly into `PHOTOS_HOST_DIR` and click **Scan photos folder**
 4. Edit each photo to set title / description, then publish
 5. Create albums, add photos, publish
 6. Write an **about** page post with slug `about`
