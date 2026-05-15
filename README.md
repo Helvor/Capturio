@@ -43,7 +43,15 @@ CACHE_DIR=/app/cache
 APP_PORT=8000              # change to any free port on your host
 ```
 
-### 2. Generate the admin password hash
+### 2. Generate the SECRET_KEY
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Copy the output (64 hex characters) into `SECRET_KEY` in your `.env`.
+
+### 3. Generate the admin password hash
 
 ```bash
 python3 scripts/generate_password_hash.py yourpassword
@@ -51,13 +59,13 @@ python3 scripts/generate_password_hash.py yourpassword
 
 Copy the output (`$2b$12$...`) into `ADMIN_PASSWORD_HASH` in your `.env`.
 
-### 3. Create local folders
+### 4. Create local folders
 
 ```bash
 mkdir -p photos cache
 ```
 
-### 4. Start
+### 5. Start
 
 ```bash
 docker compose up -d
@@ -67,7 +75,7 @@ The app runs on `http://localhost:${APP_PORT}` (default 8000).
 
 Database migrations run automatically on startup.
 
-### 5. First use
+### 6. First use
 
 1. Open `http://localhost:8000/admin` → sign in
 2. Drop some JPEG / PNG / WEBP files into the `./photos/` folder
