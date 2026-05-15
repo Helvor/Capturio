@@ -442,11 +442,16 @@ async def add_photos_to_album(
         return RedirectResponse("/auth/login", status_code=302)
 
     aid = uuid.UUID(album_id)
+    album = (await db.execute(select(Album).where(Album.id == aid))).scalar_one_or_none()
+    if not album:
+        raise HTTPException(status_code=404)
+
     max_pos_row = await db.execute(
         select(func.coalesce(func.max(AlbumPhoto.position), -1)).where(AlbumPhoto.album_id == aid)
     )
     pos = max_pos_row.scalar() + 1
 
+    added_photo_uuids = []
     for pid in photo_ids:
         try:
             photo_uuid = uuid.UUID(pid)
@@ -458,6 +463,14 @@ async def add_photos_to_album(
         if not existing:
             db.add(AlbumPhoto(album_id=aid, photo_id=photo_uuid, position=pos))
             pos += 1
+            added_photo_uuids.append(photo_uuid)
+
+    # Auto-publish photos when added to a published album
+    if album.is_published and added_photo_uuids:
+        from sqlalchemy import update
+        await db.execute(
+            update(Photo).where(Photo.id.in_(added_photo_uuids)).values(is_published=True)
+        )
 
     await db.commit()
     return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
