@@ -53,10 +53,13 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         return RedirectResponse("/auth/login", status_code=302)
 
+    from sqlalchemy import text
     total_photos = (await db.execute(select(func.count()).select_from(Photo))).scalar()
     published_photos = (await db.execute(select(func.count()).select_from(Photo).where(Photo.is_published == True))).scalar()
     total_albums = (await db.execute(select(func.count()).select_from(Album))).scalar()
     total_posts = (await db.execute(select(func.count()).select_from(Post).where(Post.post_type == PostType.announcement))).scalar()
+    db_size_bytes = (await db.execute(text("SELECT pg_database_size(current_database())"))).scalar()
+    db_size_mb = round(db_size_bytes / 1024 / 1024, 1) if db_size_bytes else 0
 
     recent_photos = (await db.execute(
         select(Photo).order_by(Photo.uploaded_at.desc()).limit(10)
@@ -75,6 +78,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         published_photos=published_photos,
         total_albums=total_albums,
         total_posts=total_posts,
+        db_size_mb=db_size_mb,
         recent_photos=recent_photos,
         announcements=announcements,
     ))
