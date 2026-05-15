@@ -17,7 +17,7 @@ services:
       - "${APP_PORT:-8000}:8000"
     volumes:
       - ${PHOTOS_HOST_DIR:-./photos}:/photos
-      - ./cache:/app/cache
+      - ${CACHE_HOST_DIR:-./cache}:/app/cache
     depends_on:
       db:
         condition: service_healthy

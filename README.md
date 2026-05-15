@@ -143,4 +143,5 @@ yourdomain.com {
 | `ADMIN_USERNAME` | Admin login username |
 | `ADMIN_PASSWORD_HASH` | bcrypt hash of admin password |
 | `PHOTOS_HOST_DIR` | Path on your host/NAS to your photos folder (default `./photos`) |
+| `CACHE_HOST_DIR` | Path on your host/NAS for thumbnails cache (default `./cache`) |
 | `APP_PORT` | Host port to bind (default `8000`) |
