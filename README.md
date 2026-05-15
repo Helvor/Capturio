@@ -57,6 +57,14 @@ Copy the output (64 hex characters) into `SECRET_KEY` in your `.env`.
 python3 scripts/generate_password_hash.py yourpassword
 ```
 
+Or via Docker if you don't have Python locally:
+
+```bash
+docker run --rm python:3.12-slim sh -c \
+  "pip install bcrypt -q && python3 -c \
+  \"import bcrypt, sys; print(bcrypt.hashpw(sys.argv[1].encode(), bcrypt.gensalt()).decode())\" yourpassword"
+```
+
 Copy the output (`$2b$12$...`) into `ADMIN_PASSWORD_HASH` in your `.env`.
 
 ### 4. Create local folders

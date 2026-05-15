@@ -3,14 +3,13 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import get_settings
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 COOKIE_NAME = "access_token"
 
@@ -49,8 +48,8 @@ async def login(
 ):
     settings = get_settings()
     valid_user = username == settings.admin_username
-    valid_pass = bool(settings.admin_password_hash) and pwd_context.verify(
-        password, settings.admin_password_hash
+    valid_pass = bool(settings.admin_password_hash) and bcrypt.checkpw(
+        password.encode("utf-8"), settings.admin_password_hash.encode("utf-8")
     )
 
     if not valid_user or not valid_pass:
