@@ -15,7 +15,7 @@ from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
 from app.routers.auth import get_current_admin
-from app.services.scanner import scan_photos_dir
+from app.services.scanner import scan_photos_dir, scan_folder_flat, get_folder_tree
 from app.services.exif import extract_exif
 from app.services.thumbnail import generate_thumbnail
 from app.config import get_settings
@@ -64,6 +64,101 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         total_posts=total_posts,
         recent_photos=recent_photos,
     ))
+
+
+# ── Folder browser ────────────────────────────────────────────────────────────
+
+@router.get("/folders", response_class=HTMLResponse)
+async def folders_browser(
+    request: Request,
+    path: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    settings = get_settings()
+    existing = await db.execute(select(Photo.filepath))
+    known_paths = {row[0] for row in existing.all()}
+
+    folders = get_folder_tree(settings.photos_dir, path, known_paths)
+    albums = (await db.execute(select(Album).order_by(Album.sort_order))).scalars().all()
+
+    # breadcrumb
+    parts = [p for p in path.split(os.sep) if p] if path else []
+    breadcrumb = []
+    for i, part in enumerate(parts):
+        breadcrumb.append({"name": part, "rel_path": os.path.join(*parts[: i + 1])})
+
+    return templates.TemplateResponse("admin/folders.html", _admin_ctx(
+        request,
+        folders=folders,
+        current_path=path,
+        breadcrumb=breadcrumb,
+        albums=albums,
+        photos_dir=settings.photos_dir,
+    ))
+
+
+@router.post("/import-folder")
+async def import_folder(
+    request: Request,
+    folder_path: str = Form(...),
+    album_id: str = Form(default=""),
+    new_album_title: str = Form(default=""),
+    new_album_slug: str = Form(default=""),
+    recursive: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    settings = get_settings()
+
+    # Security: ensure path stays within PHOTOS_DIR
+    abs_target = os.path.realpath(os.path.join(settings.photos_dir, folder_path))
+    if not abs_target.startswith(os.path.realpath(settings.photos_dir)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    if recursive == "on":
+        result = await scan_photos_dir(abs_target, db)
+    else:
+        result = await scan_folder_flat(abs_target, db)
+
+    if not result["photo_ids"]:
+        parent = os.path.dirname(folder_path) if folder_path else ""
+        return RedirectResponse(f"/admin/folders?path={parent}&imported=0", status_code=303)
+
+    # Resolve or create album
+    target_album = None
+    if new_album_title and new_album_slug:
+        target_album = Album(
+            title=new_album_title,
+            slug=new_album_slug,
+            description=f"Imported from {os.path.basename(abs_target)}",
+        )
+        db.add(target_album)
+        await db.flush()
+    elif album_id:
+        target_album = (await db.execute(select(Album).where(Album.id == uuid.UUID(album_id)))).scalar_one_or_none()
+
+    if target_album:
+        max_pos = (await db.execute(
+            select(func.coalesce(func.max(AlbumPhoto.position), -1)).where(AlbumPhoto.album_id == target_album.id)
+        )).scalar()
+        for i, pid in enumerate(result["photo_ids"]):
+            db.add(AlbumPhoto(album_id=target_album.id, photo_id=pid, position=max_pos + 1 + i))
+        await db.commit()
+
+    parent = os.path.dirname(folder_path) if folder_path else ""
+    return RedirectResponse(
+        f"/admin/folders?path={parent}&imported={result['new']}&skipped={result['skipped']}",
+        status_code=303,
+    )
 
 
 # ── Scan ──────────────────────────────────────────────────────────────────────
