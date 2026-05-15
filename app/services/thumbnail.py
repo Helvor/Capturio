@@ -2,7 +2,7 @@ import os
 from PIL import Image
 
 MAX_SIZE = (1200, 1200)
-QUALITY = 88
+QUALITY = 80
 
 # EXIF Orientation tag → PIL transpose operation
 _ORIENTATION_OPS = {
