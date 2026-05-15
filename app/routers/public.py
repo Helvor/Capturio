@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import os
 import math
 
@@ -16,6 +17,7 @@ from app.models.photo import Photo
 from app.models.album import Album, AlbumPhoto
 from app.models.post import Post, PostType
 from app.config import get_settings
+from app.services.album_token import share_token
 from app.templates_env import templates
 
 ALBUM_COOKIE = "album_access"
@@ -136,6 +138,25 @@ async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
          .options(selectinload(Album.cover_photo)))
     albums = (await db.execute(q)).scalars().all()
     return templates.TemplateResponse("public/albums.html", {"request": request, "albums": albums})
+
+
+@router.get("/albums/{slug}/{token}", response_class=HTMLResponse)
+async def album_access_via_token(slug: str, token: str, request: Request, db: AsyncSession = Depends(get_db)):
+    album = (await db.execute(
+        select(Album).where(and_(Album.slug == slug, Album.is_published == True, Album.is_private == True))
+    )).scalar_one_or_none()
+    if not album or not album.password_hash:
+        raise HTTPException(status_code=404)
+
+    expected = share_token(get_settings().secret_key, album.password_hash)
+    if not hmac.compare_digest(expected, token):
+        raise HTTPException(status_code=404)
+
+    unlocked = _get_unlocked(request)
+    unlocked.add(slug)
+    resp = RedirectResponse(f"/albums/{slug}", status_code=303)
+    resp.set_cookie(ALBUM_COOKIE, _make_cookie(unlocked), httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    return resp
 
 
 @router.get("/albums/{slug}/unlock", response_class=HTMLResponse)
