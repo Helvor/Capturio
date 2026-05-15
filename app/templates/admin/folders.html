@@ -143,6 +143,7 @@ function openImport(relPath, name) {
   document.getElementById('importActions').style.display = 'flex';
   document.getElementById('importSubmitBtn').disabled = false;
   document.getElementById('progressFill').style.width = '0%';
+  if (window._resetSlugEdited) window._resetSlugEdited();
   document.getElementById('importModal').style.display = 'flex';
 }
 
@@ -162,6 +163,23 @@ function toggleNewAlbum() {
     fields.style.display = 'none';
   }
 }
+
+// Auto-fill slug from title when user edits the album title manually
+(function() {
+  const titleEl = document.getElementById('newAlbumTitle');
+  const slugEl = document.getElementById('newAlbumSlug');
+  let slugEdited = false;
+  function toSlug(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+  titleEl.addEventListener('input', () => {
+    if (!slugEdited) slugEl.value = toSlug(titleEl.value);
+  });
+  slugEl.addEventListener('input', () => { slugEdited = slugEl.value !== ''; });
+  // Reset edited flag each time the modal opens
+  window._resetSlugEdited = () => { slugEdited = false; };
+})();
 
 document.getElementById('importModal').addEventListener('click', function(e) {
   if (e.target === this && document.getElementById('importActions').style.display !== 'none') closeImport();

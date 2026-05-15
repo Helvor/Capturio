@@ -76,9 +76,17 @@
 </div>
 
 <div class="admin-section">
-  <h2>Add photos</h2>
+  <div class="admin-section-header">
+    <h2>Add photos</h2>
+    <span id="selectionCount" class="muted-cell" style="font-size:13px"></span>
+  </div>
+  {% if all_photos | selectattr('id', 'not in', album_photo_ids) | list %}
+  <p class="muted-cell" style="font-size:12px;margin-bottom:1rem">
+    Click to select &middot; Shift+click to select a range
+    {% if album.is_published %}&middot; <strong>Photos will be published automatically</strong>{% endif %}
+  </p>
   <form action="/admin/albums/{{ album.id }}/photos/add" method="post">
-    <div class="photo-select-grid">
+    <div class="photo-select-grid" id="photoGrid">
       {% for photo in all_photos %}
       {% if photo.id not in album_photo_ids %}
       <label class="photo-select-item">
@@ -89,7 +97,67 @@
       {% endif %}
       {% endfor %}
     </div>
-    <button type="submit" class="btn-primary" style="margin-top:1rem">Add selected</button>
+    <div class="photo-select-actions">
+      <button type="button" class="btn-secondary" id="selectAllBtn">Select all</button>
+      <button type="button" class="btn-secondary" id="clearBtn">Clear</button>
+      <button type="submit" class="btn-primary" id="addBtn" disabled>Add selected</button>
+    </div>
   </form>
+  {% else %}
+  <p class="muted-cell">All imported photos are already in this album.</p>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const grid = document.getElementById('photoGrid');
+if (grid) {
+  const labels = Array.from(grid.querySelectorAll('.photo-select-item'));
+  const checkboxes = labels.map(l => l.querySelector('input[type=checkbox]'));
+  const countEl = document.getElementById('selectionCount');
+  const addBtn = document.getElementById('addBtn');
+  let lastIndex = null;
+
+  function updateUI() {
+    const n = checkboxes.filter(c => c.checked).length;
+    countEl.textContent = n > 0 ? n + ' selected' : '';
+    addBtn.disabled = n === 0;
+  }
+
+  labels.forEach((label, i) => {
+    label.addEventListener('click', (e) => {
+      e.preventDefault();
+      const cb = checkboxes[i];
+
+      if (e.shiftKey && lastIndex !== null) {
+        const from = Math.min(lastIndex, i);
+        const to = Math.max(lastIndex, i);
+        const targetState = !cb.checked;
+        for (let j = from; j <= to; j++) {
+          checkboxes[j].checked = targetState;
+          labels[j].classList.toggle('selected', targetState);
+        }
+      } else {
+        cb.checked = !cb.checked;
+        label.classList.toggle('selected', cb.checked);
+        lastIndex = i;
+      }
+      updateUI();
+    });
+  });
+
+  document.getElementById('selectAllBtn').addEventListener('click', () => {
+    checkboxes.forEach((cb, i) => { cb.checked = true; labels[i].classList.add('selected'); });
+    lastIndex = labels.length - 1;
+    updateUI();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    checkboxes.forEach((cb, i) => { cb.checked = false; labels[i].classList.remove('selected'); });
+    lastIndex = null;
+    updateUI();
+  });
+}
+</script>
 {% endblock %}
