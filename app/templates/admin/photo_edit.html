@@ -1,0 +1,39 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Edit Photo — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Edit Photo</h1>
+  <a href="/admin/photos" class="btn-secondary">&larr; Back</a>
+</div>
+
+<div class="edit-layout">
+  <div class="edit-preview">
+    <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.filename }}" class="edit-thumb" />
+    <p class="muted-cell">{{ photo.filename }}</p>
+    {% if photo.exif_camera %}<p class="muted-cell">{{ photo.exif_camera }}</p>{% endif %}
+  </div>
+
+  <form action="/admin/photos/{{ photo.id }}/edit" method="post" class="edit-form">
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" value="{{ photo.title or '' }}" />
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="4">{{ photo.description or '' }}</textarea>
+    </div>
+    <div class="form-row">
+      <label class="checkbox-label">
+        <input type="checkbox" name="is_published" {% if photo.is_published %}checked{% endif %} />
+        Published
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="download_enabled" {% if photo.download_enabled %}checked{% endif %} />
+        Download enabled
+      </label>
+    </div>
+    <button type="submit" class="btn-primary">Save changes</button>
+  </form>
+</div>
+{% endblock %}

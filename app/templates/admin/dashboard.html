@@ -1,0 +1,75 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Dashboard — Capturio Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+  <h1>Dashboard</h1>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <span class="stat-value">{{ total_photos }}</span>
+    <span class="stat-label">Total photos</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ published_photos }}</span>
+    <span class="stat-label">Published</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ total_albums }}</span>
+    <span class="stat-label">Albums</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ total_posts }}</span>
+    <span class="stat-label">Announcements</span>
+  </div>
+</div>
+
+<div class="admin-section">
+  <div class="admin-section-header">
+    <h2>Quick actions</h2>
+  </div>
+  <div class="quick-actions">
+    <form action="/admin/scan" method="post">
+      <button type="submit" class="btn-primary">&#128269; Scan photos folder</button>
+    </form>
+    <a href="/admin/photos" class="btn-secondary">Manage photos</a>
+    <a href="/admin/albums" class="btn-secondary">Manage albums</a>
+    <a href="/admin/posts" class="btn-secondary">Manage posts</a>
+  </div>
+</div>
+
+{% if recent_photos %}
+<div class="admin-section">
+  <div class="admin-section-header">
+    <h2>Recent imports</h2>
+  </div>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Thumb</th>
+        <th>Filename</th>
+        <th>Status</th>
+        <th>Imported</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for photo in recent_photos %}
+      <tr>
+        <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
+        <td class="filename-cell">{{ photo.filename }}</td>
+        <td>
+          {% if photo.is_published %}
+          <span class="badge badge-green">Published</span>
+          {% else %}
+          <span class="badge badge-grey">Draft</span>
+          {% endif %}
+        </td>
+        <td class="muted-cell">{{ photo.uploaded_at.strftime('%Y-%m-%d') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

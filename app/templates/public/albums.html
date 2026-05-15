@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Albums — Capturio{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Albums</h1>
+</div>
+
+{% if albums %}
+<div class="photo-grid">
+  {% for album in albums %}
+  <a href="/albums/{{ album.slug }}" class="photo-card album-card">
+    {% if album.cover_photo %}
+    <img src="/photos/{{ album.cover_photo.id }}/thumb" alt="{{ album.title }}" loading="lazy" />
+    {% else %}
+    <div class="album-cover-placeholder"></div>
+    {% endif %}
+    <div class="album-card-info">
+      <span class="album-card-title">{{ album.title }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state"><p>No albums yet.</p></div>
+{% endif %}
+{% endblock %}
