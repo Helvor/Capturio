@@ -11,19 +11,42 @@
   {% block head %}{% endblock %}
 </head>
 <body class="admin-body">
-  <nav class="admin-nav">
-    <a href="/" class="navbar-brand">Capturio</a>
-    <ul class="navbar-links">
-      <li><a href="/admin">Dashboard</a></li>
-      <li><a href="/admin/folders">Import</a></li>
-      <li><a href="/admin/photos">Photos</a></li>
-      <li><a href="/admin/albums">Albums</a></li>
-      <li><a href="/admin/posts">Posts</a></li>
-    </ul>
-    <form action="/auth/logout" method="post" class="logout-form">
-      <button type="submit" class="btn-ghost">Logout</button>
-    </form>
-  </nav>
+
+  <aside class="admin-sidebar">
+    <div class="sidebar-brand">
+      <a href="/admin" class="sidebar-logo">Capturio</a>
+      <span class="sidebar-label">Admin</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="/admin" class="sidebar-link {% if request.url.path == '/admin' %}active{% endif %}">
+        <span class="sidebar-icon">&#9632;</span> Dashboard
+      </a>
+      <a href="/admin/folders" class="sidebar-link {% if '/admin/folders' in request.url.path or '/admin/import' in request.url.path %}active{% endif %}">
+        <span class="sidebar-icon">&#128193;</span> Import
+      </a>
+      <a href="/admin/photos" class="sidebar-link {% if request.url.path.startswith('/admin/photos') %}active{% endif %}">
+        <span class="sidebar-icon">&#9724;</span> Photos
+      </a>
+      <a href="/admin/albums" class="sidebar-link {% if request.url.path.startswith('/admin/albums') %}active{% endif %}">
+        <span class="sidebar-icon">&#9723;</span> Albums
+      </a>
+      <a href="/admin/posts" class="sidebar-link {% if request.url.path.startswith('/admin/posts') %}active{% endif %}">
+        <span class="sidebar-icon">&#9648;</span> Posts
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="/" target="_blank" class="sidebar-link sidebar-link-muted">
+        <span class="sidebar-icon">&#8599;</span> View site
+      </a>
+      <form action="/auth/logout" method="post">
+        <button type="submit" class="sidebar-link sidebar-link-muted sidebar-logout">
+          <span class="sidebar-icon">&#8592;</span> Logout
+        </button>
+      </form>
+    </div>
+  </aside>
 
   <main class="admin-main">
     {% block content %}{% endblock %}

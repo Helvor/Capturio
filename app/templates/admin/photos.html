@@ -3,14 +3,14 @@
 
 {% block content %}
 <div class="admin-page-header">
-  <h1>Photos</h1>
+  <h1>Photos <span class="muted-cell" style="font-size:14px;font-weight:300">{{ total }}</span></h1>
   <div class="header-actions">
     <form action="/admin/photos/publish-all" method="post"
           onsubmit="return confirm('Publish all draft photos?')">
       <button type="submit" class="btn-secondary">Publish all</button>
     </form>
-    <button class="btn-secondary" id="regenBtn" onclick="startRegen()">Regenerate thumbnails</button>
-    <a href="/admin/folders" class="btn-primary">&#128193; Import from folder</a>
+    <button class="btn-secondary" id="regenBtn" onclick="startRegen()">Regen thumbnails</button>
+    <a href="/admin/folders" class="btn-primary">&#128193; Import</a>
   </div>
 </div>
 
@@ -20,7 +20,7 @@
 </div>
 
 <div class="admin-section">
-  <h2>Upload photos</h2>
+  <h2>Upload</h2>
   <form action="/admin/photos/upload" method="post" enctype="multipart/form-data" class="upload-form" id="uploadForm">
     <div class="drop-zone" id="dropZone">
       <p>Drag &amp; drop photos here, or click to browse</p>
@@ -31,6 +31,17 @@
 </div>
 
 <div class="admin-section">
+  <div class="admin-section-header">
+    <h2>All photos</h2>
+    <div class="per-page-select">
+      <span class="muted-cell" style="font-size:12px">Show</span>
+      {% for n in [20, 50, 100] %}
+      <a href="?page=1&per_page={{ n }}"
+         class="per-page-btn {% if per_page == n %}active{% endif %}">{{ n }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
   <table class="admin-table">
     <thead>
       <tr>
@@ -74,11 +85,11 @@
   {% if total_pages > 1 %}
   <nav class="pagination">
     {% if page > 1 %}
-    <a href="?page={{ page - 1 }}" class="page-link">&larr; Prev</a>
+    <a href="?page={{ page - 1 }}&per_page={{ per_page }}" class="page-link">&larr; Prev</a>
     {% endif %}
     <span class="page-info">{{ page }} / {{ total_pages }}</span>
     {% if page < total_pages %}
-    <a href="?page={{ page + 1 }}" class="page-link">Next &rarr;</a>
+    <a href="?page={{ page + 1 }}&per_page={{ per_page }}" class="page-link">Next &rarr;</a>
     {% endif %}
   </nav>
   {% endif %}
