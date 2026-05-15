@@ -20,7 +20,7 @@ except ImportError:
     HAS_PIEXIF = False
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-CONCURRENCY = 4  # parallel photo processing workers
+CONCURRENCY = 8  # parallel photo processing workers
 
 
 # ── Helpers (mirrored from exif.py to avoid double-open) ──────────────────────
@@ -73,6 +73,8 @@ def _process_single(fpath: str, fname: str, photo_id_str: str, thumbs_dir: str) 
     # Single PIL open — orientation + dimensions + thumbnail
     try:
         img = Image.open(fpath)
+        if img.format == "JPEG":
+            img.draft("RGB", MAX_SIZE)  # DCT downscale: read at reduced res
         img.load()
         img = _fix_orientation(img)
         exif["width"], exif["height"] = img.size
@@ -81,7 +83,7 @@ def _process_single(fpath: str, fname: str, photo_id_str: str, thumbs_dir: str) 
         out_path = os.path.join(thumbs_dir, f"{photo_id_str}.webp")
         thumb = img.convert("RGB")
         thumb.thumbnail(MAX_SIZE, Image.LANCZOS)
-        thumb.save(out_path, "WEBP", quality=QUALITY, method=6)
+        thumb.save(out_path, "WEBP", quality=QUALITY, method=4)
     except Exception as e:
         return {"ok": False, "error": str(e), "exif": exif}
 
