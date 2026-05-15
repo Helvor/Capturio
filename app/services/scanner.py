@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,9 +76,9 @@ async def _ingest_files(files: list[tuple[str, str]], db: AsyncSession) -> dict:
             skipped_count += 1
             continue
         try:
-            exif = extract_exif(fpath)
+            exif = await asyncio.to_thread(extract_exif, fpath)
             photo_id = uuid.uuid4()
-            generate_thumbnail(str(photo_id), fpath, settings.thumbs_dir)
+            await asyncio.to_thread(generate_thumbnail, str(photo_id), fpath, settings.thumbs_dir)
             photo = Photo(
                 id=photo_id,
                 filename=fname,

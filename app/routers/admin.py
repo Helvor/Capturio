@@ -1,3 +1,4 @@
+import asyncio
 import os
 import math
 import uuid
@@ -161,28 +162,12 @@ async def import_folder(
     )
 
 
-# ── Scan ──────────────────────────────────────────────────────────────────────
-
-@router.post("/scan", response_class=HTMLResponse)
-async def scan(request: Request, db: AsyncSession = Depends(get_db)):
-    try:
-        get_current_admin(request)
-    except HTTPException:
-        return RedirectResponse("/auth/login", status_code=302)
-
-    settings = get_settings()
-    result = await scan_photos_dir(settings.photos_dir, db)
-    return RedirectResponse(f"/admin/photos?scan_new={result['new']}&scan_skipped={result['skipped']}", status_code=303)
-
-
 # ── Photos ─────────────────────────────────────────────────────────────────────
 
 @router.get("/photos", response_class=HTMLResponse)
 async def photos_list(
     request: Request,
     page: int = 1,
-    scan_new: int | None = None,
-    scan_skipped: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -201,8 +186,6 @@ async def photos_list(
         photos=photos,
         page=page,
         total_pages=total_pages,
-        scan_new=scan_new,
-        scan_skipped=scan_skipped,
     ))
 
 
@@ -234,9 +217,9 @@ async def upload_photo(
         if existing:
             continue
 
-        exif = extract_exif(dest)
+        exif = await asyncio.to_thread(extract_exif, dest)
         photo_id = uuid.uuid4()
-        generate_thumbnail(str(photo_id), dest, settings.thumbs_dir)
+        await asyncio.to_thread(generate_thumbnail, str(photo_id), dest, settings.thumbs_dir)
 
         photo = Photo(
             id=photo_id,

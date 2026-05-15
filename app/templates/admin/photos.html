@@ -5,17 +5,9 @@
 <div class="admin-page-header">
   <h1>Photos</h1>
   <div class="header-actions">
-    <form action="/admin/scan" method="post">
-      <button type="submit" class="btn-primary">&#128269; Scan folder</button>
-    </form>
+    <a href="/admin/folders" class="btn-primary">&#128193; Import from folder</a>
   </div>
 </div>
-
-{% if scan_new is not none %}
-<div class="alert alert-info">
-  Scan complete &mdash; <strong>{{ scan_new }}</strong> new photo(s) imported, <strong>{{ scan_skipped }}</strong> skipped.
-</div>
-{% endif %}
 
 <div class="admin-section">
   <h2>Upload photos</h2>
