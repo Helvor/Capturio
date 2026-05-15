@@ -80,21 +80,19 @@
     <h2>Add photos</h2>
     <span id="selectionCount" class="muted-cell" style="font-size:13px"></span>
   </div>
-  {% if all_photos | selectattr('id', 'not in', album_photo_ids) | list %}
+  {% if available_photos %}
   <p class="muted-cell" style="font-size:12px;margin-bottom:1rem">
     Click to select &middot; Shift+click to select a range
     {% if album.is_published %}&middot; <strong>Photos will be published automatically</strong>{% endif %}
   </p>
   <form action="/admin/albums/{{ album.id }}/photos/add" method="post">
     <div class="photo-select-grid" id="photoGrid">
-      {% for photo in all_photos %}
-      {% if photo.id not in album_photo_ids %}
+      {% for photo in available_photos %}
       <label class="photo-select-item">
         <input type="checkbox" name="photo_ids" value="{{ photo.id }}" />
         <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.filename }}" loading="lazy" />
         <span class="photo-select-name">{{ photo.filename }}</span>
       </label>
-      {% endif %}
       {% endfor %}
     </div>
     <div class="photo-select-actions">
