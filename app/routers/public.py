@@ -3,9 +3,9 @@ import math
 
 import markdown as md
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -21,40 +21,36 @@ PLACEHOLDER = os.path.join(os.path.dirname(__file__), "..", "static", "placehold
 PAGE_SIZE = 24
 
 
-@router.get("/", response_class=HTMLResponse)
-async def home(request: Request, album: str | None = None, page: int = 1, db: AsyncSession = Depends(get_db)):
-    settings = get_settings()
-
-    # Pinned announcements
-    ann_q = select(Post).where(
-        and_(Post.is_published == True, Post.post_type == PostType.announcement, Post.pinned == True)
-    ).order_by(Post.created_at.desc())
-    announcements = (await db.execute(ann_q)).scalars().all()
-
-    # Published albums for filter
-    albums_q = select(Album).where(Album.is_published == True).order_by(Album.sort_order)
-    albums = (await db.execute(albums_q)).scalars().all()
-
-    # Photos
+async def _build_photo_query(album: str | None, db: AsyncSession):
     if album:
         album_obj = (await db.execute(select(Album).where(Album.slug == album))).scalar_one_or_none()
         if album_obj:
-            q = (
+            return (
                 select(Photo)
                 .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
                 .where(and_(AlbumPhoto.album_id == album_obj.id, Photo.is_published == True))
                 .order_by(AlbumPhoto.position)
             )
-        else:
-            q = select(Photo).where(Photo.is_published == True).order_by(Photo.uploaded_at.desc())
-    else:
-        q = select(Photo).where(Photo.is_published == True).order_by(Photo.uploaded_at.desc())
+    return select(Photo).where(Photo.is_published == True).order_by(Photo.uploaded_at.desc())
 
-    count_result = await db.execute(q)
-    all_photos = count_result.scalars().all()
-    total = len(all_photos)
+
+@router.get("/", response_class=HTMLResponse)
+async def home(request: Request, album: str | None = None, page: int = 1, db: AsyncSession = Depends(get_db)):
+    settings = get_settings()
+
+    ann_q = select(Post).where(
+        and_(Post.is_published == True, Post.post_type == PostType.announcement, Post.pinned == True)
+    ).order_by(Post.created_at.desc())
+    announcements = (await db.execute(ann_q)).scalars().all()
+
+    albums_q = select(Album).where(Album.is_published == True).order_by(Album.sort_order)
+    albums = (await db.execute(albums_q)).scalars().all()
+
+    q = await _build_photo_query(album, db)
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
-    photos = all_photos[(page - 1) * PAGE_SIZE: page * PAGE_SIZE]
+    page = min(page, total_pages)
+    photos = (await db.execute(q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
 
     return templates.TemplateResponse("public/index.html", {
         "request": request,
@@ -65,6 +61,21 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
         "page": page,
         "total_pages": total_pages,
         "settings": settings,
+    })
+
+
+@router.get("/api/photos")
+async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession = Depends(get_db)):
+    q = await _build_photo_query(album, db)
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    page = min(max(1, page), total_pages)
+    photos = (await db.execute(q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
+    return JSONResponse({
+        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
+        "page": page,
+        "total_pages": total_pages,
+        "has_more": page < total_pages,
     })
 
 

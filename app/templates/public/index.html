@@ -24,7 +24,7 @@
 {% endif %}
 
 {% if photos %}
-<div class="photo-grid">
+<div class="photo-grid" id="photoGrid">
   {% for photo in photos %}
   <a href="/photos/{{ photo.id }}{% if current_album %}?album={{ current_album }}{% endif %}" class="photo-card">
     <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" loading="lazy" />
@@ -33,18 +33,66 @@
 </div>
 
 {% if total_pages > 1 %}
-<nav class="pagination">
-  {% if page > 1 %}
-  <a href="?page={{ page - 1 }}{% if current_album %}&album={{ current_album }}{% endif %}" class="page-link">&larr;</a>
-  {% else %}<span></span>{% endif %}
-  <span class="page-info">{{ page }} / {{ total_pages }}</span>
-  {% if page < total_pages %}
-  <a href="?page={{ page + 1 }}{% if current_album %}&album={{ current_album }}{% endif %}" class="page-link">&rarr;</a>
-  {% else %}<span></span>{% endif %}
-</nav>
+<div class="scroll-sentinel" id="sentinel">
+  <span id="sentinelLabel">Loading…</span>
+</div>
 {% endif %}
 
 {% else %}
 <div class="empty-state"><p>No photos yet.</p></div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const grid = document.getElementById('photoGrid');
+  const sentinel = document.getElementById('sentinel');
+  const label = document.getElementById('sentinelLabel');
+  if (!grid || !sentinel) return;
+
+  let page = {{ page }};
+  const totalPages = {{ total_pages }};
+  const album = {{ ('"' + current_album + '"') if current_album else 'null' }};
+
+  if (page >= totalPages) { sentinel.remove(); return; }
+
+  const observer = new IntersectionObserver(async (entries) => {
+    if (!entries[0].isIntersecting) return;
+    observer.disconnect();
+    page++;
+    label.textContent = 'Loading…';
+
+    try {
+      const url = `/api/photos?page=${page}${album ? '&album=' + encodeURIComponent(album) : ''}`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+
+      for (const photo of data.photos) {
+        const a = document.createElement('a');
+        a.href = `/photos/${photo.id}${album ? '?album=' + encodeURIComponent(album) : ''}`;
+        a.className = 'photo-card';
+        const img = document.createElement('img');
+        img.src = `/photos/${photo.id}/thumb`;
+        img.alt = photo.title || photo.filename;
+        img.loading = 'lazy';
+        a.appendChild(img);
+        grid.appendChild(a);
+      }
+
+      if (data.has_more) {
+        label.textContent = '';
+        grid.after(sentinel);
+        observer.observe(sentinel);
+      } else {
+        sentinel.remove();
+      }
+    } catch (_) {
+      sentinel.remove();
+    }
+  }, { rootMargin: '300px' });
+
+  observer.observe(sentinel);
+})();
+</script>
 {% endblock %}
