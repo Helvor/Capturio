@@ -22,6 +22,7 @@ from app.services.album_token import share_token
 from app.templates_env import templates
 
 ALBUM_COOKIE = "album_access"
+SPACE_COOKIE = "space_access"
 
 
 def _get_unlocked(request: Request) -> set[str]:
@@ -36,6 +37,21 @@ def _get_unlocked(request: Request) -> set[str]:
 
 
 def _make_cookie(unlocked: set[str]) -> str:
+    return jwt.encode({"u": list(unlocked)}, get_settings().secret_key, algorithm="HS256")
+
+
+def _get_unlocked_spaces(request: Request) -> set[str]:
+    token = request.cookies.get(SPACE_COOKIE)
+    if not token:
+        return set()
+    try:
+        data = jwt.decode(token, get_settings().secret_key, algorithms=["HS256"])
+        return set(data.get("u", []))
+    except JWTError:
+        return set()
+
+
+def _make_space_cookie(unlocked: set[str]) -> str:
     return jwt.encode({"u": list(unlocked)}, get_settings().secret_key, algorithm="HS256")
 
 router = APIRouter()
@@ -157,6 +173,63 @@ async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
     })
 
 
+@router.get("/spaces/{slug}/{token}", response_class=HTMLResponse)
+async def space_access_via_token(slug: str, token: str, request: Request, db: AsyncSession = Depends(get_db)):
+    space = (await db.execute(
+        select(Space).where(and_(Space.slug == slug, Space.is_published == True, Space.is_private == True))
+    )).scalar_one_or_none()
+    if not space or not space.password_hash:
+        raise HTTPException(status_code=404)
+
+    expected = share_token(get_settings().secret_key, space.password_hash)
+    if not hmac.compare_digest(expected, token):
+        raise HTTPException(status_code=404)
+
+    unlocked = _get_unlocked_spaces(request)
+    unlocked.add(slug)
+    resp = RedirectResponse(f"/spaces/{slug}", status_code=303)
+    resp.set_cookie(SPACE_COOKIE, _make_space_cookie(unlocked), httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    return resp
+
+
+@router.get("/spaces/{slug}/unlock", response_class=HTMLResponse)
+async def space_unlock_page(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+    space = (await db.execute(
+        select(Space).where(and_(Space.slug == slug, Space.is_published == True, Space.is_private == True))
+    )).scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404)
+    if slug in _get_unlocked_spaces(request):
+        return RedirectResponse(f"/spaces/{slug}", status_code=302)
+    return templates.TemplateResponse("public/space_unlock.html", {
+        "request": request, "space": space, "error": False,
+    })
+
+
+@router.post("/spaces/{slug}/unlock")
+async def space_unlock(slug: str, request: Request, password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    space = (await db.execute(
+        select(Space).where(and_(Space.slug == slug, Space.is_published == True, Space.is_private == True))
+    )).scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404)
+
+    valid = (
+        space.password_hash is not None
+        and await asyncio.to_thread(bcrypt.checkpw, password.encode(), space.password_hash.encode())
+    )
+    if not valid:
+        return templates.TemplateResponse("public/space_unlock.html", {
+            "request": request, "space": space, "error": True,
+        }, status_code=401)
+
+    unlocked = _get_unlocked_spaces(request)
+    unlocked.add(slug)
+    resp = RedirectResponse(f"/spaces/{slug}", status_code=303)
+    resp.set_cookie(SPACE_COOKIE, _make_space_cookie(unlocked), httponly=True, samesite="lax", max_age=30 * 24 * 3600)
+    return resp
+
+
 @router.get("/spaces/{slug}", response_class=HTMLResponse)
 async def space_detail(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
     space = (await db.execute(
@@ -166,6 +239,9 @@ async def space_detail(slug: str, request: Request, db: AsyncSession = Depends(g
     )).scalar_one_or_none()
     if not space:
         raise HTTPException(status_code=404)
+
+    if space.is_private and slug not in _get_unlocked_spaces(request):
+        return RedirectResponse(f"/spaces/{slug}/unlock", status_code=302)
 
     space.albums = [a for a in space.albums if a.is_published and not a.is_private]
     return templates.TemplateResponse("public/space.html", {"request": request, "space": space})
