@@ -317,8 +317,41 @@ async def album_unlock(slug: str, request: Request, password: str = Form(...), d
     return resp
 
 
+@router.get("/api/albums/{slug}/photos")
+async def api_album_photos(slug: str, page: int = 1, db: AsyncSession = Depends(get_db)):
+    album = (await db.execute(
+        select(Album).where(and_(Album.slug == slug, Album.is_published == True))
+    )).scalar_one_or_none()
+    if not album:
+        raise HTTPException(status_code=404)
+
+    total = (await db.execute(
+        select(func.count(Photo.id))
+        .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+        .where(and_(AlbumPhoto.album_id == album.id, Photo.is_published == True))
+    )).scalar()
+    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    page = min(max(1, page), total_pages)
+
+    photos = (await db.execute(
+        select(Photo)
+        .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+        .where(and_(AlbumPhoto.album_id == album.id, Photo.is_published == True))
+        .order_by(AlbumPhoto.position)
+        .offset((page - 1) * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+    )).scalars().all()
+
+    return JSONResponse({
+        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
+        "page": page,
+        "total_pages": total_pages,
+        "has_more": page < total_pages,
+    })
+
+
 @router.get("/albums/{slug}", response_class=HTMLResponse)
-async def album_detail(slug: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def album_detail(slug: str, page: int = 1, request: Request = None, db: AsyncSession = Depends(get_db)):
     album = (await db.execute(
         select(Album).where(and_(Album.slug == slug, Album.is_published == True))
         .options(selectinload(Album.cover_photo))
@@ -329,18 +362,29 @@ async def album_detail(slug: str, request: Request, db: AsyncSession = Depends(g
     if album.is_private and slug not in _get_unlocked(request):
         return RedirectResponse(f"/albums/{slug}/unlock", status_code=302)
 
-    q = (
+    total = (await db.execute(
+        select(func.count(Photo.id))
+        .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+        .where(and_(AlbumPhoto.album_id == album.id, Photo.is_published == True))
+    )).scalar()
+    total_pages = max(1, math.ceil(total / PAGE_SIZE))
+    page = min(max(1, page), total_pages)
+
+    photos = (await db.execute(
         select(Photo)
         .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
         .where(and_(AlbumPhoto.album_id == album.id, Photo.is_published == True))
         .order_by(AlbumPhoto.position)
-    )
-    photos = (await db.execute(q)).scalars().all()
+        .limit(PAGE_SIZE)
+    )).scalars().all()
 
     return templates.TemplateResponse("public/album.html", {
         "request": request,
         "album": album,
         "photos": photos,
+        "total": total,
+        "total_pages": total_pages,
+        "page": page,
     })
 
 
@@ -361,20 +405,33 @@ async def photo_detail(photo_id: str, request: Request, album: str | None = None
     if album:
         album_obj = (await db.execute(select(Album).where(Album.slug == album))).scalar_one_or_none()
         if album_obj:
-            q = (
-                select(Photo, AlbumPhoto.position)
-                .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
-                .where(and_(AlbumPhoto.album_id == album_obj.id, Photo.is_published == True))
-                .order_by(AlbumPhoto.position)
-            )
-            rows = (await db.execute(q)).all()
-            ordered = [r[0] for r in rows]
-            idx = next((i for i, p in enumerate(ordered) if p.id == photo.id), None)
-            if idx is not None:
-                if idx > 0:
-                    prev_photo = ordered[idx - 1]
-                if idx < len(ordered) - 1:
-                    next_photo = ordered[idx + 1]
+            # Get only this photo's position, then fetch the immediate neighbours
+            pos_row = (await db.execute(
+                select(AlbumPhoto.position)
+                .where(and_(AlbumPhoto.album_id == album_obj.id, AlbumPhoto.photo_id == photo.id))
+            )).scalar_one_or_none()
+            if pos_row is not None:
+                cur_pos = pos_row
+                prev_row = (await db.execute(
+                    select(Photo)
+                    .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+                    .where(and_(AlbumPhoto.album_id == album_obj.id,
+                                AlbumPhoto.position < cur_pos,
+                                Photo.is_published == True))
+                    .order_by(AlbumPhoto.position.desc())
+                    .limit(1)
+                )).scalar_one_or_none()
+                next_row = (await db.execute(
+                    select(Photo)
+                    .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+                    .where(and_(AlbumPhoto.album_id == album_obj.id,
+                                AlbumPhoto.position > cur_pos,
+                                Photo.is_published == True))
+                    .order_by(AlbumPhoto.position.asc())
+                    .limit(1)
+                )).scalar_one_or_none()
+                prev_photo = prev_row
+                next_photo = next_row
 
     return templates.TemplateResponse("public/photo.html", {
         "request": request,
