@@ -171,6 +171,30 @@ async def import_folder(
 
 # ── Photos ─────────────────────────────────────────────────────────────────────
 
+@router.post("/photos/regen-thumbs")
+async def regen_thumbs(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    settings = get_settings()
+    photos = (await db.execute(select(Photo.id, Photo.filepath))).all()
+
+    async def stream():
+        total = len(photos)
+        for i, (photo_id, filepath) in enumerate(photos):
+            try:
+                await asyncio.to_thread(generate_thumbnail, str(photo_id), filepath, settings.thumbs_dir, True)
+                status = "ok"
+            except Exception as e:
+                status = f"error: {e}"
+            yield f"data: {json.dumps({'current': i+1, 'total': total, 'status': status})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'total': total})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
 @router.get("/photos", response_class=HTMLResponse)
 async def photos_list(
     request: Request,
