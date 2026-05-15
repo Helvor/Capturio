@@ -1,3 +1,14 @@
+/* ── Photo fade-in on load ──────────────────────────────────────────────── */
+function bindPhotoFade(img) {
+  if (img.complete && img.naturalWidth > 0) {
+    img.classList.add('img-loaded');
+  } else {
+    img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
+    img.addEventListener('error', () => img.classList.add('img-loaded'), { once: true });
+  }
+}
+document.querySelectorAll('.photo-card img').forEach(bindPhotoFade);
+
 /* ── Upload drop zone ───────────────────────────────────────────────────── */
 (function () {
   const zone = document.getElementById('dropZone');

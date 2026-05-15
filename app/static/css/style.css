@@ -108,9 +108,13 @@ button, input, select, textarea {
   width: 100%;
   height: auto;
   display: block;
-  transition: opacity 0.35s ease, transform 0.45s ease;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.45s ease;
 }
-.photo-card:hover img { opacity: 0.82; transform: scale(1.03); }
+.photo-card img.img-loaded {
+  opacity: 1;
+}
+.photo-card:hover img.img-loaded { opacity: 0.82; transform: scale(1.03); }
 
 /* Scroll sentinel */
 .scroll-sentinel {

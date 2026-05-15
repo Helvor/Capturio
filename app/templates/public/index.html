@@ -75,6 +75,7 @@
         img.src = '/photos/' + photo.id + '/thumb';
         img.alt = photo.title || photo.filename;
         img.loading = 'lazy';
+        if (typeof bindPhotoFade === 'function') bindPhotoFade(img);
         a.appendChild(img);
         grid.appendChild(a);
       }
