@@ -1205,7 +1205,59 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
         get_current_admin(request)
     except HTTPException:
         return RedirectResponse("/auth/login", status_code=302)
-    return templates.TemplateResponse("admin/stats.html", _admin_ctx(request))
+
+    total = (await db.execute(select(func.count()).select_from(Photo))).scalar() or 0
+    published = (await db.execute(select(func.count()).select_from(Photo).where(Photo.is_published == True))).scalar() or 0
+    total_size = (await db.execute(select(func.coalesce(func.sum(Photo.file_size_bytes), 0)))).scalar() or 0
+    with_exif = (await db.execute(select(func.count()).select_from(Photo).where(Photo.exif_camera.isnot(None)))).scalar() or 0
+
+    async def top_values(col, limit=10):
+        rows = (await db.execute(
+            select(col, func.count().label("n"))
+            .where(col.isnot(None))
+            .group_by(col).order_by(func.count().desc()).limit(limit)
+        )).all()
+        return [(str(r[0]), r[1]) for r in rows]
+
+    cameras = await top_values(Photo.exif_camera, 10)
+    lenses = await top_values(Photo.exif_lens, 10)
+    focal_lengths = await top_values(Photo.exif_focal_length, 15)
+    apertures = await top_values(Photo.exif_aperture, 12)
+
+    iso_vals = (await db.execute(select(Photo.exif_iso).where(Photo.exif_iso.isnot(None)))).scalars().all()
+    iso_buckets_map = {"<200": 0, "200–399": 0, "400–799": 0, "800–1599": 0, "1600–3199": 0, "≥3200": 0}
+    for v in iso_vals:
+        if v < 200: iso_buckets_map["<200"] += 1
+        elif v < 400: iso_buckets_map["200–399"] += 1
+        elif v < 800: iso_buckets_map["400–799"] += 1
+        elif v < 1600: iso_buckets_map["800–1599"] += 1
+        elif v < 3200: iso_buckets_map["1600–3199"] += 1
+        else: iso_buckets_map["≥3200"] += 1
+    iso_buckets = [(k, v) for k, v in iso_buckets_map.items() if v > 0]
+
+    timeline_rows = (await db.execute(
+        select(
+            func.date_trunc("month", Photo.taken_at).label("month"),
+            func.count().label("n")
+        )
+        .where(Photo.taken_at.isnot(None))
+        .group_by("month").order_by("month")
+    )).all()
+    timeline = [(r.month.strftime("%Y-%m") if r.month else "?", r.n) for r in timeline_rows]
+
+    def fmt_bytes(b):
+        if b >= 1_073_741_824: return f"{b / 1_073_741_824:.1f} GB"
+        if b >= 1_048_576: return f"{b / 1_048_576:.0f} MB"
+        return f"{b / 1024:.0f} KB"
+
+    ctx = _admin_ctx(request,
+        total=total, published=published, draft=total - published,
+        total_size=fmt_bytes(total_size), with_exif=with_exif,
+        cameras=cameras, lenses=lenses,
+        focal_lengths=focal_lengths, apertures=apertures,
+        iso_buckets=iso_buckets, timeline=timeline,
+    )
+    return templates.TemplateResponse("admin/stats.html", ctx)
 
 
 @router.post("/posts/{post_id}/delete")

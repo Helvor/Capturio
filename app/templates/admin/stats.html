@@ -1,14 +1,64 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Stats — Capturio Admin{% endblock %}
 
+{% macro bar_section(title, rows) %}
+{% if rows %}
+{% set max_n = rows | map(attribute=1) | max %}
+<div class="stats-section">
+  <h3>{{ title }}</h3>
+  {% for label, n in rows %}
+  <div class="stats-bar-row">
+    <span class="stats-bar-label" title="{{ label }}">{{ label }}</span>
+    <div class="stats-bar-track">
+      <div class="stats-bar-fill" style="width:{{ ((n / max_n) * 100) | round | int }}%"></div>
+    </div>
+    <span class="stats-bar-count">{{ n }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <div class="admin-page-header">
   <h1>Statistics</h1>
 </div>
-<div class="admin-section">
-  <div class="empty-state" style="padding:3rem 2rem">
-    <p style="font-size:1.1rem;margin-bottom:0.5rem">Coming soon</p>
-    <p class="muted-cell">EXIF-based statistics (camera, lens, focal length, etc.) will appear here.</p>
+
+<div class="stat-cards">
+  <div class="stat-card">
+    <div class="stat-card-value">{{ total }}</div>
+    <div class="stat-card-label">Total photos</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value">{{ published }}</div>
+    <div class="stat-card-label">Published</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value">{{ draft }}</div>
+    <div class="stat-card-label">Draft</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value">{{ total_size }}</div>
+    <div class="stat-card-label">Storage</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card-value">{{ with_exif }}</div>
+    <div class="stat-card-label">With EXIF</div>
   </div>
 </div>
+
+<div class="stats-grid">
+  {{ bar_section("Cameras", cameras) }}
+  {{ bar_section("Lenses", lenses) }}
+  {{ bar_section("Focal lengths", focal_lengths) }}
+  {{ bar_section("Apertures", apertures) }}
+  {{ bar_section("ISO", iso_buckets) }}
+  {{ bar_section("Photos per month", timeline) }}
+</div>
+
+{% if not cameras and not lenses and not focal_lengths and not apertures and not iso_buckets and not timeline %}
+<div class="empty-state" style="padding:3rem 2rem">
+  <p class="muted-cell">No EXIF data found. Import some photos to see statistics.</p>
+</div>
+{% endif %}
 {% endblock %}
