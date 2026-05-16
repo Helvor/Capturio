@@ -1440,3 +1440,17 @@ a.space-section-title:hover { color: var(--accent); }
   border-radius: var(--radius);
 }
 .btn-ghost:hover { color: var(--text); background: var(--accent-dim); }
+
+/* ── Stats page ───────────────────────────────────────────────────────────────── */
+.stat-cards { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 2rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem 1.5rem; min-width: 120px; }
+.stat-card-value { font-size: 2rem; font-weight: 300; line-height: 1.1; }
+.stat-card-label { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+.stats-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem 1.4rem; }
+.stats-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 1rem; font-weight: 500; }
+.stats-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; font-size: 12px; }
+.stats-bar-label { width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; color: var(--text); }
+.stats-bar-track { flex: 1; background: var(--border); border-radius: 2px; height: 5px; overflow: hidden; }
+.stats-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; min-width: 2px; }
+.stats-bar-count { color: var(--muted); min-width: 32px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
