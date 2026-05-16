@@ -17,10 +17,6 @@
   </div>
 </div>
 
-<div id="regenProgress" style="display:none; margin-bottom:1.5rem">
-  <div class="progress-bar-track"><div class="progress-bar-fill" id="regenFill"></div></div>
-  <p class="progress-label" id="regenLabel"></p>
-</div>
 <div id="regenBanner" class="jobs-banner" style="display:none"></div>
 
 <div class="admin-section">
@@ -37,54 +33,72 @@
 <div class="admin-section">
   <div class="admin-section-header">
     <h2>All photos</h2>
-    <div class="per-page-select">
-      <span class="muted-cell" style="font-size:12px">Show</span>
-      {% for n in [20, 50, 100] %}
-      <a href="?page=1&per_page={{ n }}"
-         class="per-page-btn {% if per_page == n %}active{% endif %}">{{ n }}</a>
-      {% endfor %}
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="bulkCount" class="muted-cell" style="font-size:13px"></span>
+      <div class="per-page-select">
+        <span class="muted-cell" style="font-size:12px">Show</span>
+        {% for n in [20, 50, 100] %}
+        <a href="?page=1&per_page={{ n }}"
+           class="per-page-btn {% if per_page == n %}active{% endif %}">{{ n }}</a>
+        {% endfor %}
+      </div>
     </div>
   </div>
 
-  <table class="admin-table">
-    <thead>
-      <tr>
-        <th>Thumb</th>
-        <th>Filename</th>
-        <th>Camera</th>
-        <th>Status</th>
-        <th>Imported</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for photo in photos %}
-      <tr>
-        <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
-        <td class="filename-cell">{{ photo.filename }}</td>
-        <td class="muted-cell">{{ photo.exif_camera or '—' }}</td>
-        <td>
-          {% if photo.is_published %}
-          <span class="badge badge-green">Published</span>
-          {% else %}
-          <span class="badge badge-grey">Draft</span>
-          {% endif %}
-        </td>
-        <td class="muted-cell">{{ photo.uploaded_at.strftime('%Y-%m-%d') }}</td>
-        <td class="actions-cell">
-          <a href="/admin/photos/{{ photo.id }}/edit" class="btn-xs">Edit</a>
-          <form action="/admin/photos/{{ photo.id }}/toggle-publish" method="post" style="display:inline">
-            <button type="submit" class="btn-xs">{% if photo.is_published %}Unpublish{% else %}Publish{% endif %}</button>
-          </form>
-          <form action="/admin/photos/{{ photo.id }}/delete" method="post" style="display:inline"
-                onsubmit="return confirm('Delete this photo entry?')">
-            <button type="submit" class="btn-xs btn-danger">Delete</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <form action="/admin/photos/bulk-action" method="post" id="bulkForm">
+    <div id="bulkBar" class="bulk-action-bar" style="display:none">
+      <button type="submit" name="action" value="unpublish" class="btn-secondary btn-sm">Unpublish selected</button>
+      <button type="submit" name="action" value="delete" class="btn-danger btn-sm"
+              onclick="return confirm('Delete selected photos? This cannot be undone.')">Delete selected</button>
+      <button type="button" class="btn-secondary btn-sm" id="clearBulkBtn">Clear</button>
+    </div>
+
+    <table class="admin-table photos-table">
+      <thead>
+        <tr>
+          <th style="width:32px">
+            <input type="checkbox" id="selectAllCb" title="Select all" />
+          </th>
+          <th>Thumb</th>
+          <th>Filename</th>
+          <th>Camera</th>
+          <th>Status</th>
+          <th>Imported</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for photo in photos %}
+        <tr class="photo-row" data-id="{{ photo.id }}">
+          <td>
+            <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="photo-row-cb" />
+          </td>
+          <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
+          <td class="filename-cell">{{ photo.filename }}</td>
+          <td class="muted-cell">{{ photo.exif_camera or '—' }}</td>
+          <td>
+            {% if photo.is_published %}
+            <span class="badge badge-green">Published</span>
+            {% else %}
+            <span class="badge badge-grey">Draft</span>
+            {% endif %}
+          </td>
+          <td class="muted-cell">{{ photo.uploaded_at.strftime('%Y-%m-%d') }}</td>
+          <td class="actions-cell">
+            <a href="/admin/photos/{{ photo.id }}/edit" class="btn-xs">Edit</a>
+            <form action="/admin/photos/{{ photo.id }}/toggle-publish" method="post" style="display:inline">
+              <button type="submit" class="btn-xs">{% if photo.is_published %}Unpublish{% else %}Publish{% endif %}</button>
+            </form>
+            <form action="/admin/photos/{{ photo.id }}/delete" method="post" style="display:inline"
+                  onsubmit="return confirm('Delete this photo entry?')">
+              <button type="submit" class="btn-xs btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
 
   {% if total_pages > 1 %}
   <nav class="pagination">
@@ -103,16 +117,10 @@
 {% block scripts %}
 <script>
 const regenBanner = document.getElementById('regenBanner');
-const regenProgress = document.getElementById('regenProgress');
-const regenFill = document.getElementById('regenFill');
-const regenLabel = document.getElementById('regenLabel');
-
 async function pollRegen() {
   try {
-    const resp = await fetch('/admin/regen-job');
-    const job = await resp.json();
+    const job = await (await fetch('/admin/regen-job')).json();
     if (!job || !job.status) { regenBanner.style.display = 'none'; return; }
-
     if (job.status === 'running') {
       const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
       regenBanner.innerHTML = `<span class="job-running">&#8635; Regen thumbnails — ${job.current}/${job.total} (${pct}%)</span>`;
@@ -124,8 +132,56 @@ async function pollRegen() {
     }
   } catch (_) {}
 }
-
 pollRegen();
 setInterval(pollRegen, 2000);
+
+// ── Multi-select ──────────────────────────────────────────────────────────────
+const rows = Array.from(document.querySelectorAll('.photo-row'));
+const cbs = rows.map(r => r.querySelector('.photo-row-cb'));
+const selectAll = document.getElementById('selectAllCb');
+const bulkBar = document.getElementById('bulkBar');
+const bulkCount = document.getElementById('bulkCount');
+let lastIdx = null;
+
+function updateBulkUI() {
+  const n = cbs.filter(c => c.checked).length;
+  bulkCount.textContent = n > 0 ? n + ' selected' : '';
+  bulkBar.style.display = n > 0 ? 'flex' : 'none';
+  selectAll.indeterminate = n > 0 && n < cbs.length;
+  selectAll.checked = n === cbs.length && cbs.length > 0;
+}
+
+rows.forEach((row, i) => {
+  row.style.cursor = 'pointer';
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.actions-cell') || e.target.tagName === 'A') return;
+    const cb = cbs[i];
+    const newChecked = e.target === cb ? cb.checked : !cb.checked;
+    if (e.shiftKey && lastIdx !== null) {
+      const from = Math.min(lastIdx, i), to = Math.max(lastIdx, i);
+      for (let j = from; j <= to; j++) {
+        cbs[j].checked = newChecked;
+        rows[j].classList.toggle('selected', newChecked);
+      }
+    } else {
+      if (e.target !== cb) cb.checked = newChecked;
+      row.classList.toggle('selected', newChecked);
+      lastIdx = i;
+    }
+    updateBulkUI();
+  });
+});
+
+selectAll.addEventListener('change', () => {
+  cbs.forEach((cb, i) => { cb.checked = selectAll.checked; rows[i].classList.toggle('selected', selectAll.checked); });
+  lastIdx = null;
+  updateBulkUI();
+});
+
+document.getElementById('clearBulkBtn').addEventListener('click', () => {
+  cbs.forEach((cb, i) => { cb.checked = false; rows[i].classList.remove('selected'); });
+  selectAll.checked = false; lastIdx = null;
+  updateBulkUI();
+});
 </script>
 {% endblock %}

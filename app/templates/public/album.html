@@ -8,7 +8,13 @@
     <h1>{{ album.title }}</h1>
     {% if album.description %}<p class="section-desc">{{ album.description }}</p>{% endif %}
   </div>
-  <span class="section-count muted">{{ total }} photo{% if total != 1 %}s{% endif %}</span>
+  <div class="section-header-right">
+    <span class="section-count muted">{{ total }} photo{% if total != 1 %}s{% endif %}</span>
+    <span class="album-date-meta muted">
+      Created {{ album.created_at.strftime('%B %Y') }}
+      {% if earliest_taken %}· Photos {{ earliest_taken.strftime('%B %Y') }}{% endif %}
+    </span>
+  </div>
 </div>
 
 {% if photos %}

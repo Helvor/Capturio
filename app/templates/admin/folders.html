@@ -38,6 +38,11 @@
               &#128193; {{ folder.name }}
               {% if folder.has_subfolders %}<span class="muted-cell"> &rsaquo;</span>{% endif %}
             </a>
+            {% if folder.image_count > 0 %}
+            <button class="btn-ghost" style="margin-left:6px"
+                    onclick="toggleFileList(this, '{{ folder.rel_path | e }}')"
+                    data-open="0">&#128065; Files</button>
+            {% endif %}
           </td>
           <td class="muted-cell">{{ folder.image_count }}</td>
           <td class="muted-cell">
@@ -55,11 +60,14 @@
           </td>
           <td>
             {% if folder.image_count > 0 %}
-            <button class="btn-xs" onclick="openImport('{{ folder.rel_path }}', '{{ folder.name }}')">
+            <button class="btn-xs" onclick="openImport('{{ folder.rel_path | e }}', '{{ folder.name | e }}')">
               &#8659; Import
             </button>
             {% endif %}
           </td>
+        </tr>
+        <tr class="folder-files-row" style="display:none">
+          <td colspan="4" class="folder-files-cell"></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -121,6 +129,40 @@
 
 {% block scripts %}
 <script>
+const _fileCache = {};
+async function toggleFileList(btn, path) {
+  const filesRow = btn.closest('tr').nextElementSibling;
+  const cell = filesRow.querySelector('.folder-files-cell');
+  const isOpen = btn.dataset.open === '1';
+  if (isOpen) {
+    filesRow.style.display = 'none';
+    btn.dataset.open = '0';
+    btn.textContent = '👁 Files';
+    return;
+  }
+  btn.dataset.open = '1';
+  btn.textContent = '▲ Hide';
+  filesRow.style.display = '';
+  if (_fileCache[path]) { renderFiles(cell, _fileCache[path]); return; }
+  cell.innerHTML = '<span class="muted-cell" style="display:block;padding:0.5rem">Loading…</span>';
+  try {
+    const data = await fetch('/admin/api/folder-files?path=' + encodeURIComponent(path)).then(r => r.json());
+    _fileCache[path] = data.files;
+    renderFiles(cell, data.files);
+  } catch {
+    cell.innerHTML = '<span class="muted-cell" style="display:block;padding:0.5rem">Error loading files</span>';
+  }
+}
+function renderFiles(cell, files) {
+  if (!files || files.length === 0) {
+    cell.innerHTML = '<span class="muted-cell" style="display:block;padding:0.5rem">No image files found</span>';
+    return;
+  }
+  cell.innerHTML = '<div class="file-chips">' +
+    files.map(f => `<span class="file-chip${f.imported ? ' file-chip-done' : ''}">${f.filename}</span>`).join('') +
+    '</div>';
+}
+
 function openImport(relPath, name) {
   document.getElementById('modalFolderPath').value = relPath;
   document.getElementById('modalFolderName').textContent = name;

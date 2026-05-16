@@ -7,6 +7,16 @@
   <a href="/admin/spaces" class="btn-secondary">&larr; Back</a>
 </div>
 
+{% if request.query_params.get('saved') %}
+<div id="saveToast" class="save-toast">Saved successfully</div>
+<script>
+setTimeout(() => {
+  const t = document.getElementById('saveToast');
+  if (t) { t.classList.add('fade-out'); setTimeout(() => t.remove(), 400); }
+}, 2500);
+</script>
+{% endif %}
+
 <div class="admin-section">
   <h2>Space settings</h2>
   <form action="/admin/spaces/{{ space.id }}/edit" method="post" class="edit-form">

@@ -168,10 +168,25 @@ async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
          .order_by(Album.sort_order)
          .options(selectinload(Album.cover_photo)))
     standalone_albums = (await db.execute(q)).scalars().all()
+
+    # Get earliest photo taken_at per album for display
+    from sqlalchemy import label
+    all_album_ids = [a.id for _, als in spaces for a in als] + [a.id for a in standalone_albums]
+    album_dates = {}
+    if all_album_ids:
+        rows = (await db.execute(
+            select(AlbumPhoto.album_id, func.min(Photo.taken_at).label("earliest"))
+            .join(Photo, Photo.id == AlbumPhoto.photo_id)
+            .where(AlbumPhoto.album_id.in_(all_album_ids))
+            .group_by(AlbumPhoto.album_id)
+        )).all()
+        album_dates = {str(r.album_id): r.earliest for r in rows}
+
     return templates.TemplateResponse("public/albums.html", {
         "request": request,
         "spaces": spaces,
         "standalone_albums": standalone_albums,
+        "album_dates": album_dates,
     })
 
 
@@ -378,6 +393,12 @@ async def album_detail(slug: str, page: int = 1, request: Request = None, db: As
         .limit(PAGE_SIZE)
     )).scalars().all()
 
+    earliest_taken = (await db.execute(
+        select(func.min(Photo.taken_at))
+        .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+        .where(AlbumPhoto.album_id == album.id)
+    )).scalar()
+
     return templates.TemplateResponse("public/album.html", {
         "request": request,
         "album": album,
@@ -385,6 +406,7 @@ async def album_detail(slug: str, page: int = 1, request: Request = None, db: As
         "total": total,
         "total_pages": total_pages,
         "page": page,
+        "earliest_taken": earliest_taken,
     })
 
 

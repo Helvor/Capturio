@@ -4,10 +4,13 @@
 {% block content %}
 <div class="section-header">
   <h1>Albums</h1>
+  <div class="album-search-wrap">
+    <input type="search" id="albumSearch" placeholder="Search albums…" class="album-search-input" autocomplete="off" />
+  </div>
 </div>
 
 {% for space, space_albums in spaces %}
-<div class="space-section">
+<div class="space-section" data-searchable>
   <div class="space-section-header">
     <a href="/spaces/{{ space.slug }}" class="space-section-title">{{ space.title }}</a>
     {% if space.description %}
@@ -17,7 +20,7 @@
   {% if space_albums %}
   <div class="albums-grid">
     {% for album in space_albums %}
-    <a href="/albums/{{ album.slug }}" class="album-card">
+    <a href="/albums/{{ album.slug }}" class="album-card" data-title="{{ album.title | lower }}">
       <div class="album-card-cover">
         {% if album.cover_photo %}
         <img src="/photos/{{ album.cover_photo.id }}/thumb" alt="{{ album.title }}" loading="lazy" />
@@ -27,9 +30,11 @@
       </div>
       <div class="album-card-body">
         <span class="album-card-title">{{ album.title }}</span>
-        {% if album.description %}
-        <span class="album-card-desc">{{ album.description }}</span>
-        {% endif %}
+        <span class="album-card-meta">
+          Created {{ album.created_at.strftime('%B %Y') }}
+          {% set photo_date = album_dates.get(album.id | string) %}
+          {% if photo_date %}· Photos {{ photo_date.strftime('%B %Y') }}{% endif %}
+        </span>
       </div>
     </a>
     {% endfor %}
@@ -42,16 +47,16 @@
 
 {% if standalone_albums %}
 {% if spaces %}
-<div class="space-section">
+<div class="space-section" data-searchable>
   <div class="space-section-header">
     <span class="space-section-title">Other albums</span>
   </div>
   <div class="albums-grid">
 {% else %}
-<div class="albums-grid">
+<div class="albums-grid" data-searchable>
 {% endif %}
   {% for album in standalone_albums %}
-  <a href="/albums/{{ album.slug }}" class="album-card">
+  <a href="/albums/{{ album.slug }}" class="album-card" data-title="{{ album.title | lower }}">
     <div class="album-card-cover">
       {% if album.cover_photo %}
       <img src="/photos/{{ album.cover_photo.id }}/thumb" alt="{{ album.title }}" loading="lazy" />
@@ -61,9 +66,11 @@
     </div>
     <div class="album-card-body">
       <span class="album-card-title">{{ album.title }}</span>
-      {% if album.description %}
-      <span class="album-card-desc">{{ album.description }}</span>
-      {% endif %}
+      <span class="album-card-meta">
+        Created {{ album.created_at.strftime('%B %Y') }}
+        {% set photo_date = album_dates.get(album.id | string) %}
+        {% if photo_date %}· Photos {{ photo_date.strftime('%B %Y') }}{% endif %}
+      </span>
     </div>
   </a>
   {% endfor %}
@@ -78,4 +85,25 @@
 {% if not spaces and not standalone_albums %}
 <div class="empty-state"><p>No albums yet.</p></div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const input = document.getElementById('albumSearch');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('.album-card').forEach(card => {
+      const match = !q || card.dataset.title.includes(q);
+      card.style.display = match ? '' : 'none';
+    });
+    // Hide space sections that have no visible albums
+    document.querySelectorAll('[data-searchable]').forEach(section => {
+      const visible = section.querySelectorAll('.album-card:not([style*="none"])').length;
+      section.style.display = visible ? '' : 'none';
+    });
+  });
+})();
+</script>
 {% endblock %}

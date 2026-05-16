@@ -24,6 +24,10 @@
       <option value="page" {% if post_type == 'page' %}selected{% endif %}>Page</option>
     </select>
   </div>
+  <div class="form-group">
+    <label>Excerpt <span class="muted-cell" style="font-weight:300;font-size:12px">(short summary shown in listings)</span></label>
+    <textarea name="excerpt" rows="2">{{ post.excerpt if post and post.excerpt else '' }}</textarea>
+  </div>
   <div class="post-editor-layout">
     <div class="form-group" style="flex:1">
       <label>Body (Markdown)</label>
