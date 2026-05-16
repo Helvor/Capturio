@@ -49,7 +49,7 @@
     <div id="bulkBar" class="bulk-action-bar" style="display:none">
       <button type="submit" name="action" value="unpublish" class="btn-secondary btn-sm">Unpublish selected</button>
       <button type="submit" name="action" value="delete" class="btn-danger btn-sm"
-              onclick="return confirm('Delete selected photos? This cannot be undone.')">Delete selected</button>
+              onclick="return confirm('Delete selected photos?')">Delete selected</button>
       <button type="button" class="btn-secondary btn-sm" id="clearBulkBtn">Clear</button>
     </div>
 
@@ -123,11 +123,11 @@ async function pollRegen() {
     if (!job || !job.status) { regenBanner.style.display = 'none'; return; }
     if (job.status === 'running') {
       const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
-      regenBanner.innerHTML = `<span class="job-running">&#8635; Regen thumbnails — ${job.current}/${job.total} (${pct}%)</span>`;
+      regenBanner.innerHTML = '<span class="job-running">&#8635; Regen thumbnails — ' + job.current + '/' + job.total + ' (' + pct + '%)</span>';
       regenBanner.style.display = 'flex';
     } else if (job.status === 'done') {
-      const errMsg = job.errors > 0 ? ` — ${job.errors} failed` : '';
-      regenBanner.innerHTML = `<span class="job-done">&#10003; Regen done — ${job.total} thumbnails${errMsg}</span>`;
+      const errMsg = job.errors > 0 ? ' — ' + job.errors + ' failed' : '';
+      regenBanner.innerHTML = '<span class="job-done">&#10003; Regen done — ' + job.total + ' thumbnails' + errMsg + '</span>';
       regenBanner.style.display = 'flex';
     }
   } catch (_) {}
@@ -135,7 +135,7 @@ async function pollRegen() {
 pollRegen();
 setInterval(pollRegen, 2000);
 
-// ── Multi-select ──────────────────────────────────────────────────────────────
+// -- Multi-select
 const rows = Array.from(document.querySelectorAll('.photo-row'));
 const cbs = rows.map(r => r.querySelector('.photo-row-cb'));
 const selectAll = document.getElementById('selectAllCb');
@@ -180,7 +180,8 @@ selectAll.addEventListener('change', () => {
 
 document.getElementById('clearBulkBtn').addEventListener('click', () => {
   cbs.forEach((cb, i) => { cb.checked = false; rows[i].classList.remove('selected'); });
-  selectAll.checked = false; lastIdx = null;
+  selectAll.checked = false;
+  lastIdx = null;
   updateBulkUI();
 });
 </script>
