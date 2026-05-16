@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, String
+from sqlalchemy import select, and_, func, literal, String
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -98,7 +98,7 @@ async def _photo_queries(album: str | None, db: AsyncSession, seed: str = ""):
         Photo.is_published == True,
         or_(not_in_any_album, in_public_album),
     )
-    order_expr = func.md5(func.cast(Photo.id, String).concat(func.literal(seed))) if seed else func.md5(func.cast(Photo.id, String))
+    order_expr = func.md5(func.cast(Photo.id, String).concat(literal(seed))) if seed else func.md5(func.cast(Photo.id, String))
     data_q = select(Photo).where(gallery_filter).order_by(order_expr)
     count_q = select(func.count(Photo.id)).where(gallery_filter)
     return data_q, count_q
