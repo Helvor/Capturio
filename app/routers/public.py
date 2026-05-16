@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, String
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -97,7 +97,7 @@ async def _photo_queries(album: str | None, db: AsyncSession):
         Photo.is_published == True,
         or_(not_in_any_album, in_public_album),
     )
-    data_q = select(Photo).where(gallery_filter).order_by(Photo.uploaded_at.desc())
+    data_q = select(Photo).where(gallery_filter).order_by(func.md5(func.cast(Photo.id, String)))
     count_q = select(func.count(Photo.id)).where(gallery_filter)
     return data_q, count_q
 
@@ -140,7 +140,7 @@ async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession =
     page = min(max(1, page), total_pages)
     photos = (await db.execute(data_q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
     return JSONResponse({
-        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
+        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename, "w": p.exif_width, "h": p.exif_height} for p in photos],
         "page": page,
         "total_pages": total_pages,
         "has_more": page < total_pages,
@@ -168,10 +168,25 @@ async def albums_list(request: Request, db: AsyncSession = Depends(get_db)):
          .order_by(Album.sort_order)
          .options(selectinload(Album.cover_photo)))
     standalone_albums = (await db.execute(q)).scalars().all()
+
+    # Get earliest photo taken_at per album for display
+    from sqlalchemy import label
+    all_album_ids = [a.id for _, als in spaces for a in als] + [a.id for a in standalone_albums]
+    album_dates = {}
+    if all_album_ids:
+        rows = (await db.execute(
+            select(AlbumPhoto.album_id, func.min(Photo.taken_at).label("earliest"))
+            .join(Photo, Photo.id == AlbumPhoto.photo_id)
+            .where(AlbumPhoto.album_id.in_(all_album_ids))
+            .group_by(AlbumPhoto.album_id)
+        )).all()
+        album_dates = {str(r.album_id): r.earliest for r in rows}
+
     return templates.TemplateResponse("public/albums.html", {
         "request": request,
         "spaces": spaces,
         "standalone_albums": standalone_albums,
+        "album_dates": album_dates,
     })
 
 
@@ -343,7 +358,7 @@ async def api_album_photos(slug: str, page: int = 1, db: AsyncSession = Depends(
     )).scalars().all()
 
     return JSONResponse({
-        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
+        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename, "w": p.exif_width, "h": p.exif_height} for p in photos],
         "page": page,
         "total_pages": total_pages,
         "has_more": page < total_pages,
@@ -378,6 +393,12 @@ async def album_detail(slug: str, page: int = 1, request: Request = None, db: As
         .limit(PAGE_SIZE)
     )).scalars().all()
 
+    earliest_taken = (await db.execute(
+        select(func.min(Photo.taken_at))
+        .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
+        .where(AlbumPhoto.album_id == album.id)
+    )).scalar()
+
     return templates.TemplateResponse("public/album.html", {
         "request": request,
         "album": album,
@@ -385,6 +406,7 @@ async def album_detail(slug: str, page: int = 1, request: Request = None, db: As
         "total": total,
         "total_pages": total_pages,
         "page": page,
+        "earliest_taken": earliest_taken,
     })
 
 

@@ -8,13 +8,19 @@
     <h1>{{ album.title }}</h1>
     {% if album.description %}<p class="section-desc">{{ album.description }}</p>{% endif %}
   </div>
-  <span class="section-count muted">{{ total }} photo{% if total != 1 %}s{% endif %}</span>
+  <div class="section-header-right">
+    <span class="section-count muted">{{ total }} photo{% if total != 1 %}s{% endif %}</span>
+    <span class="album-date-meta muted">
+      Created {{ album.created_at.strftime('%B %Y') }}
+      {% if earliest_taken %}· Photos {{ earliest_taken.strftime('%B %Y') }}{% endif %}
+    </span>
+  </div>
 </div>
 
 {% if photos %}
 <div class="photo-grid" id="photoGrid">
   {% for photo in photos %}
-  <a href="/photos/{{ photo.id }}?album={{ album.slug }}" class="photo-card">
+  <a href="/photos/{{ photo.id }}?album={{ album.slug }}" class="photo-card"{% if photo.exif_width and photo.exif_height %} style="aspect-ratio:{{ photo.exif_width }}/{{ photo.exif_height }}"{% endif %}>
     <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" loading="lazy" />
   </a>
   {% endfor %}
@@ -58,6 +64,7 @@
         const a = document.createElement('a');
         a.href = '/photos/' + photo.id + '?album=' + encodeURIComponent(slug);
         a.className = 'photo-card';
+        if (photo.w && photo.h) a.style.aspectRatio = photo.w + '/' + photo.h;
         const img = document.createElement('img');
         img.src = '/photos/' + photo.id + '/thumb';
         img.alt = photo.title || photo.filename;

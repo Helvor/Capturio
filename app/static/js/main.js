@@ -7,7 +7,15 @@ function bindPhotoFade(img) {
     img.addEventListener('error', () => img.classList.add('img-loaded'), { once: true });
   }
 }
-document.querySelectorAll('.photo-card img').forEach(bindPhotoFade);
+
+// Stagger initial page images so they wave in rather than pop individually
+document.querySelectorAll('.photo-card img').forEach((img, i) => {
+  img.style.transitionDelay = Math.min(i * 35, 500) + 'ms';
+  bindPhotoFade(img);
+  // Clear delay after first load so hover transitions stay instant
+  img.addEventListener('load', () => { img.style.transitionDelay = '0ms'; }, { once: true });
+  img.addEventListener('error', () => { img.style.transitionDelay = '0ms'; }, { once: true });
+});
 
 /* ── Upload drop zone ───────────────────────────────────────────────────── */
 (function () {

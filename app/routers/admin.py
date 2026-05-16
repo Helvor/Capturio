@@ -517,6 +517,36 @@ async def delete_photo(photo_id: str, request: Request, db: AsyncSession = Depen
     return RedirectResponse("/admin/photos", status_code=303)
 
 
+@router.post("/photos/bulk-action")
+async def photos_bulk_action(
+    request: Request,
+    action: str = Form(...),
+    photo_ids: list[str] = Form(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    from sqlalchemy import update as sa_update
+    ids = []
+    for pid in photo_ids:
+        try:
+            ids.append(uuid.UUID(pid))
+        except ValueError:
+            continue
+
+    if ids:
+        if action == "delete":
+            await db.execute(delete(Photo).where(Photo.id.in_(ids)))
+        elif action == "unpublish":
+            await db.execute(sa_update(Photo).where(Photo.id.in_(ids)).values(is_published=False))
+        await db.commit()
+
+    return RedirectResponse("/admin/photos", status_code=303)
+
+
 # ── Albums ─────────────────────────────────────────────────────────────────────
 
 @router.get("/albums", response_class=HTMLResponse)
@@ -570,8 +600,6 @@ async def edit_album_form(album_id: str, request: Request, db: AsyncSession = De
     if not album:
         raise HTTPException(status_code=404)
 
-    # All published photos + which are in this album
-    all_photos = (await db.execute(select(Photo).order_by(Photo.uploaded_at.desc()))).scalars().all()
     album_photos_q = (
         select(Photo, AlbumPhoto.position)
         .join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id)
@@ -579,8 +607,6 @@ async def edit_album_form(album_id: str, request: Request, db: AsyncSession = De
         .order_by(AlbumPhoto.position)
     )
     album_photos = [(r[0], r[1]) for r in (await db.execute(album_photos_q)).all()]
-    album_photo_ids = {p.id for p, _ in album_photos}
-    available_photos = [p for p in all_photos if p.id not in album_photo_ids]
 
     from app.services.album_token import share_token
     from app.config import get_settings as _gs
@@ -592,7 +618,6 @@ async def edit_album_form(album_id: str, request: Request, db: AsyncSession = De
     spaces = (await db.execute(select(Space).order_by(Space.sort_order))).scalars().all()
     return templates.TemplateResponse("admin/album_edit.html", _admin_ctx(
         request, album=album, album_photos=album_photos,
-        available_photos=available_photos, album_photo_ids=album_photo_ids,
         share_link=share_link, spaces=spaces,
     ))
 
@@ -776,6 +801,20 @@ async def move_photo_in_album(
     return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
 
 
+@router.post("/albums/{album_id}/set-cover")
+async def set_album_cover(album_id: str, request: Request, photo_id: str = Form(...), db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+    album = (await db.execute(select(Album).where(Album.id == uuid.UUID(album_id)))).scalar_one_or_none()
+    if not album:
+        raise HTTPException(status_code=404)
+    album.cover_photo_id = uuid.UUID(photo_id)
+    await db.commit()
+    return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
+
+
 @router.post("/albums/{album_id}/regen-thumbs")
 async def regen_album_thumbs(album_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     try:
@@ -933,7 +972,7 @@ async def edit_space(
         )
 
     await db.commit()
-    return RedirectResponse(f"/admin/spaces/{space_id}/edit", status_code=303)
+    return RedirectResponse(f"/admin/spaces/{space_id}/edit?saved=1", status_code=303)
 
 
 @router.post("/spaces/{space_id}/albums/add")
@@ -1027,6 +1066,7 @@ async def create_post(
     title: str = Form(...),
     slug: str = Form(...),
     body: str = Form(default=""),
+    excerpt: str = Form(default=""),
     post_type: str = Form(...),
     is_published: str = Form(default=""),
     pinned: str = Form(default=""),
@@ -1041,6 +1081,7 @@ async def create_post(
         title=title,
         slug=slug,
         body=body,
+        excerpt=excerpt or None,
         post_type=PostType(post_type),
         is_published=is_published == "on",
         pinned=pinned == "on",
@@ -1071,6 +1112,7 @@ async def edit_post(
     title: str = Form(...),
     slug: str = Form(...),
     body: str = Form(default=""),
+    excerpt: str = Form(default=""),
     post_type: str = Form(...),
     is_published: str = Form(default=""),
     pinned: str = Form(default=""),
@@ -1088,11 +1130,82 @@ async def edit_post(
     post.title = title
     post.slug = slug
     post.body = body
+    post.excerpt = excerpt or None
     post.post_type = PostType(post_type)
     post.is_published = is_published == "on"
     post.pinned = pinned == "on"
     await db.commit()
     return RedirectResponse("/admin/posts", status_code=303)
+
+
+@router.get("/api/available-photos")
+async def api_available_photos(
+    request: Request,
+    album_id: str = "",
+    page: int = 1,
+    q: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        raise HTTPException(status_code=401)
+
+    PAGE = 48
+    base_q = select(Photo)
+    if album_id:
+        try:
+            aid = uuid.UUID(album_id)
+            in_album = select(AlbumPhoto.photo_id).where(AlbumPhoto.album_id == aid)
+            base_q = base_q.where(Photo.id.not_in(in_album))
+        except ValueError:
+            pass
+    if q:
+        base_q = base_q.where(Photo.filename.ilike(f"%{q}%"))
+    base_q = base_q.order_by(Photo.uploaded_at.desc())
+
+    count_q = select(func.count()).select_from(base_q.subquery())
+    total = (await db.execute(count_q)).scalar()
+    total_pages = max(1, math.ceil(total / PAGE))
+    page = min(max(1, page), total_pages)
+    photos = (await db.execute(base_q.offset((page - 1) * PAGE).limit(PAGE))).scalars().all()
+
+    return JSONResponse({
+        "photos": [{"id": str(p.id), "filename": p.filename, "w": p.exif_width, "h": p.exif_height} for p in photos],
+        "page": page, "total_pages": total_pages, "has_more": page < total_pages,
+    })
+
+
+@router.get("/api/folder-files")
+async def api_folder_files(
+    request: Request,
+    path: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        raise HTTPException(status_code=401)
+
+    settings = get_settings()
+    abs_path = os.path.realpath(os.path.join(settings.photos_dir, path))
+    if not abs_path.startswith(os.path.realpath(settings.photos_dir)):
+        raise HTTPException(status_code=400)
+
+    existing = {row[0] for row in (await db.execute(select(Photo.filepath))).all()}
+    files = _collect_files(abs_path, recursive=False)
+    return JSONResponse({
+        "files": [{"filename": fname, "imported": fpath in existing} for fpath, fname in files]
+    })
+
+
+@router.get("/stats", response_class=HTMLResponse)
+async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+    return templates.TemplateResponse("admin/stats.html", _admin_ctx(request))
 
 
 @router.post("/posts/{post_id}/delete")

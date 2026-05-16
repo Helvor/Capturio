@@ -23,6 +23,7 @@ class Post(Base):
     slug: Mapped[str] = mapped_column(String(256), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     body: Mapped[str] = mapped_column(Text, default="")
+    excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
     post_type: Mapped[PostType] = mapped_column(Enum(PostType), nullable=False)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)

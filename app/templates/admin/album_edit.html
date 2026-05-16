@@ -34,17 +34,19 @@
       <input type="number" name="sort_order" value="{{ album.sort_order }}" />
     </div>
     <div class="form-group">
-      <label>Cover photo ID</label>
-      <input type="text" name="cover_photo_id" value="{{ album.cover_photo_id or '' }}" placeholder="UUID of cover photo" />
-    </div>
-    <div class="form-group">
       <label>Space</label>
-      <select name="space_id">
-        <option value="">— No space —</option>
-        {% for space in spaces %}
-        <option value="{{ space.id }}" {% if album.space_id == space.id %}selected{% endif %}>{{ space.title }}</option>
-        {% endfor %}
-      </select>
+      <div class="space-picker" id="spacePicker">
+        <input type="hidden" name="space_id" id="spaceIdInput" value="{{ album.space_id or '' }}" />
+        <input type="text" id="spaceSearchInput"
+               value="{% if album.space %}{{ album.space.title }}{% endif %}"
+               placeholder="No space (search to pick…)" autocomplete="off" class="space-search-input" />
+        <div class="space-dropdown" id="spaceDropdown" style="display:none">
+          <div class="space-option" data-id="" data-label="— No space —">— No space —</div>
+          {% for space in spaces %}
+          <div class="space-option" data-id="{{ space.id }}" data-label="{{ space.title }}">{{ space.title }}</div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <label class="checkbox-label">
@@ -108,43 +110,46 @@
 <div class="admin-section">
   <div class="admin-section-header">
     <h2>Photos in this album</h2>
-    <span id="removeCount" class="muted-cell" style="font-size:13px"></span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="removeCount" class="muted-cell" style="font-size:13px"></span>
+    </div>
   </div>
   {% if album_photos %}
   <p class="muted-cell" style="font-size:12px;margin-bottom:1rem">
-    Click to select &middot; Shift+click to select a range &middot; use &#8593;&#8595; to reorder
+    Click &#9733; to set as cover &middot; check to select &middot; Shift+click for range &middot; &#8593;&#8595; to reorder
   </p>
   <form action="/admin/albums/{{ album.id }}/photos/remove-bulk" method="post" id="removeForm">
-    <table class="admin-table" id="albumTable">
-      <thead>
-        <tr><th style="width:32px"></th><th>Thumb</th><th>Filename</th><th>Position</th><th>Reorder</th></tr>
-      </thead>
-      <tbody>
-        {% for photo, pos in album_photos %}
-        <tr class="album-row" data-id="{{ photo.id }}">
-          <td>
-            <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="album-row-cb" />
-          </td>
-          <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
-          <td class="filename-cell">{{ photo.filename }}</td>
-          <td class="muted-cell">{{ pos }}</td>
-          <td class="actions-cell">
-            <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
-              <input type="hidden" name="direction" value="up" />
-              <button type="submit" class="btn-xs">&#8593;</button>
-            </form>
-            <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:inline">
-              <input type="hidden" name="direction" value="down" />
-              <button type="submit" class="btn-xs">&#8595;</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <div class="photo-select-actions" id="removeActions" style="display:none">
-      <button type="submit" class="btn-danger" id="removeBtn"
-              onclick="return confirm('Remove selected photos from this album?')">Remove selected</button>
+    <div class="album-photo-grid" id="albumPhotoGrid">
+      {% for photo, pos in album_photos %}
+      <div class="album-photo-item {% if album.cover_photo_id == photo.id %}is-cover{% endif %}" data-id="{{ photo.id }}" data-pos="{{ pos }}">
+        <div class="album-photo-thumb">
+          <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.filename }}" loading="lazy" />
+          <div class="album-photo-overlay">
+            <label class="album-photo-cb-wrap" onclick="event.stopPropagation()">
+              <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="album-row-cb" />
+            </label>
+            <div class="album-photo-reorder">
+              <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:contents">
+                <input type="hidden" name="direction" value="up" />
+                <button type="submit" class="btn-icon" title="Move up">&#8593;</button>
+              </form>
+              <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:contents">
+                <input type="hidden" name="direction" value="down" />
+                <button type="submit" class="btn-icon" title="Move down">&#8595;</button>
+              </form>
+            </div>
+          </div>
+          <form action="/admin/albums/{{ album.id }}/set-cover" method="post" class="cover-form" style="display:contents">
+            <input type="hidden" name="photo_id" value="{{ photo.id }}" />
+            <button type="submit" class="cover-btn" title="Set as cover">&#9733;</button>
+          </form>
+        </div>
+        <span class="album-photo-name">{{ photo.filename }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="photo-select-actions" id="removeActions" style="display:none;margin-top:1rem">
+      <button type="submit" class="btn-danger" onclick="return confirm('Remove selected photos from this album?')">Remove selected</button>
       <button type="button" class="btn-secondary" id="clearRemoveBtn">Clear selection</button>
     </div>
   </form>
@@ -156,32 +161,32 @@
 <div class="admin-section">
   <div class="admin-section-header">
     <h2>Add photos</h2>
-    <span id="selectionCount" class="muted-cell" style="font-size:13px"></span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="selectionCount" class="muted-cell" style="font-size:13px"></span>
+      <button type="button" class="btn-secondary" id="toggleAddPhotos" onclick="toggleAddPanel()">Browse photos</button>
+    </div>
   </div>
-  {% if available_photos %}
-  <p class="muted-cell" style="font-size:12px;margin-bottom:1rem">
-    Click to select &middot; Shift+click to select a range
-    {% if album.is_published %}&middot; <strong>Photos will be published automatically</strong>{% endif %}
-  </p>
-  <form action="/admin/albums/{{ album.id }}/photos/add" method="post">
-    <div class="photo-select-grid" id="photoGrid">
-      {% for photo in available_photos %}
-      <label class="photo-select-item">
-        <input type="checkbox" name="photo_ids" value="{{ photo.id }}" />
-        <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.filename }}" loading="lazy" />
-        <span class="photo-select-name">{{ photo.filename }}</span>
-      </label>
-      {% endfor %}
+
+  <div id="addPhotosPanel" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:1rem;align-items:center">
+      <input type="search" id="photoSearchInput" placeholder="Search by filename…" class="admin-search-input" />
+      <span class="muted-cell" id="addPageInfo" style="font-size:12px"></span>
     </div>
-    <div class="photo-select-actions">
-      <button type="button" class="btn-secondary" id="selectAllBtn">Select all</button>
-      <button type="button" class="btn-secondary" id="clearBtn">Clear</button>
-      <button type="submit" class="btn-primary" id="addBtn" disabled>Add selected</button>
-    </div>
-  </form>
-  {% else %}
-  <p class="muted-cell">All imported photos are already in this album.</p>
-  {% endif %}
+    <form action="/admin/albums/{{ album.id }}/photos/add" method="post" id="addForm">
+      <div class="photo-select-grid" id="addPhotoGrid"></div>
+      <div class="photo-select-actions" id="addActions" style="display:none;margin-top:1rem">
+        <button type="button" class="btn-secondary" id="addSelectAll">Select all</button>
+        <button type="button" class="btn-secondary" id="addClear">Clear</button>
+        <button type="button" class="btn-secondary" id="addPrevBtn" disabled>&#8592; Prev</button>
+        <button type="button" class="btn-secondary" id="addNextBtn" disabled>Next &#8594;</button>
+        <button type="submit" class="btn-primary" id="addBtn" disabled>Add selected</button>
+      </div>
+    </form>
+    <p class="muted-cell" style="font-size:12px;margin-top:0.5rem">
+      Click to select &middot; Shift+click for range
+      {% if album.is_published %}&middot; <strong>Photos will be published automatically</strong>{% endif %}
+    </p>
+  </div>
 </div>
 {% endblock %}
 
@@ -203,11 +208,45 @@ function copyShareLink() {
   });
 }
 
-// ── Remove selection ────────────────────────────────────────────────────────
-const albumTable = document.getElementById('albumTable');
-if (albumTable) {
-  const rows = Array.from(albumTable.querySelectorAll('.album-row'));
-  const cbs = rows.map(r => r.querySelector('.album-row-cb'));
+// -- Space picker
+(function () {
+  const searchInput = document.getElementById('spaceSearchInput');
+  const dropdown = document.getElementById('spaceDropdown');
+  const hiddenInput = document.getElementById('spaceIdInput');
+  if (!searchInput) return;
+  const options = Array.from(dropdown.querySelectorAll('.space-option'));
+
+  function showDropdown(filter) {
+    const q = (filter || '').toLowerCase();
+    let anyVisible = false;
+    options.forEach(opt => {
+      const match = !q || opt.dataset.label.toLowerCase().includes(q);
+      opt.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    dropdown.style.display = anyVisible ? 'block' : 'none';
+  }
+
+  searchInput.addEventListener('focus', () => showDropdown(searchInput.value));
+  searchInput.addEventListener('input', () => showDropdown(searchInput.value));
+  options.forEach(opt => {
+    opt.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      hiddenInput.value = opt.dataset.id;
+      searchInput.value = opt.dataset.id ? opt.dataset.label : '';
+      dropdown.style.display = 'none';
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#spacePicker')) dropdown.style.display = 'none';
+  });
+})();
+
+// -- Album photos grid: remove selection
+const albumPhotoGrid = document.getElementById('albumPhotoGrid');
+if (albumPhotoGrid) {
+  const items = Array.from(albumPhotoGrid.querySelectorAll('.album-photo-item'));
+  const cbs = items.map(i => i.querySelector('.album-row-cb'));
   const countEl = document.getElementById('removeCount');
   const actions = document.getElementById('removeActions');
   let lastIdx = null;
@@ -218,85 +257,139 @@ if (albumTable) {
     actions.style.display = n > 0 ? 'flex' : 'none';
   }
 
-  rows.forEach((row, i) => {
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.actions-cell')) return;
+  items.forEach((item, i) => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.album-photo-overlay') || e.target.closest('.cover-btn') || e.target.closest('.cover-form')) return;
       const cb = cbs[i];
-      // if clicking the checkbox itself the browser already toggled it
       const newChecked = e.target === cb ? cb.checked : !cb.checked;
       if (e.shiftKey && lastIdx !== null) {
-        const from = Math.min(lastIdx, i);
-        const to = Math.max(lastIdx, i);
+        const from = Math.min(lastIdx, i), to = Math.max(lastIdx, i);
         for (let j = from; j <= to; j++) {
           cbs[j].checked = newChecked;
-          rows[j].classList.toggle('selected', newChecked);
+          items[j].classList.toggle('selected', newChecked);
         }
       } else {
         if (e.target !== cb) cb.checked = newChecked;
-        row.classList.toggle('selected', newChecked);
+        item.classList.toggle('selected', newChecked);
         lastIdx = i;
       }
       updateRemoveUI();
     });
   });
 
-  document.getElementById('clearRemoveBtn').addEventListener('click', () => {
-    cbs.forEach((cb, i) => { cb.checked = false; rows[i].classList.remove('selected'); });
+  document.getElementById('clearRemoveBtn')?.addEventListener('click', () => {
+    cbs.forEach((cb, i) => { cb.checked = false; items[i].classList.remove('selected'); });
     lastIdx = null;
     updateRemoveUI();
   });
 }
 
-// ── Add selection ───────────────────────────────────────────────────────────
-const grid = document.getElementById('photoGrid');
-if (grid) {
-  const labels = Array.from(grid.querySelectorAll('.photo-select-item'));
-  const checkboxes = labels.map(l => l.querySelector('input[type=checkbox]'));
-  const countEl = document.getElementById('selectionCount');
-  const addBtn = document.getElementById('addBtn');
-  let lastIndex = null;
+// -- Add photos panel: lazy loading
+const ALBUM_ID = '{{ album.id }}';
+let addPage = 1, addTotalPages = 1, addLoading = false, addLastIdx = null;
+let addCheckboxes = [], addLabels = [];
 
-  function updateUI() {
-    const n = checkboxes.filter(c => c.checked).length;
-    countEl.textContent = n > 0 ? n + ' selected' : '';
-    addBtn.disabled = n === 0;
+function toggleAddPanel() {
+  const panel = document.getElementById('addPhotosPanel');
+  const btn = document.getElementById('toggleAddPhotos');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    btn.textContent = 'Hide';
+    if (addLabels.length === 0) loadAddPage(1);
+  } else {
+    panel.style.display = 'none';
+    btn.textContent = 'Browse photos';
+  }
+}
+
+async function loadAddPage(page, q) {
+  if (addLoading) return;
+  addLoading = true;
+  const grid = document.getElementById('addPhotoGrid');
+  const pageInfo = document.getElementById('addPageInfo');
+  grid.innerHTML = '<p class="muted-cell" style="padding:1rem">Loading...</p>';
+  addCheckboxes = []; addLabels = []; addLastIdx = null;
+
+  const params = new URLSearchParams({ album_id: ALBUM_ID, page, q: q || '' });
+  const data = await fetch('/admin/api/available-photos?' + params).then(r => r.json());
+  addPage = data.page;
+  addTotalPages = data.total_pages;
+
+  grid.innerHTML = '';
+  if (data.photos.length === 0) {
+    grid.innerHTML = '<p class="muted-cell" style="padding:1rem">All photos are already in this album.</p>';
+    document.getElementById('addActions').style.display = 'none';
+    addLoading = false; return;
   }
 
-  labels.forEach((label, i) => {
+  data.photos.forEach(photo => {
+    const label = document.createElement('label');
+    label.className = 'photo-select-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.name = 'photo_ids'; cb.value = photo.id;
+    const img = document.createElement('img');
+    img.src = '/photos/' + photo.id + '/thumb';
+    img.alt = photo.filename; img.loading = 'lazy';
+    const name = document.createElement('span');
+    name.className = 'photo-select-name'; name.textContent = photo.filename;
+    label.appendChild(cb); label.appendChild(img); label.appendChild(name);
+
+    const idx = addCheckboxes.length;
+    addCheckboxes.push(cb); addLabels.push(label);
+
     label.addEventListener('click', (e) => {
       e.preventDefault();
-      const cb = checkboxes[i];
-
-      if (e.shiftKey && lastIndex !== null) {
-        const from = Math.min(lastIndex, i);
-        const to = Math.max(lastIndex, i);
-        const targetState = !cb.checked;
+      const newChecked = !cb.checked;
+      if (e.shiftKey && addLastIdx !== null) {
+        const from = Math.min(addLastIdx, idx), to = Math.max(addLastIdx, idx);
         for (let j = from; j <= to; j++) {
-          checkboxes[j].checked = targetState;
-          labels[j].classList.toggle('selected', targetState);
+          addCheckboxes[j].checked = newChecked;
+          addLabels[j].classList.toggle('selected', newChecked);
         }
       } else {
-        cb.checked = !cb.checked;
-        label.classList.toggle('selected', cb.checked);
-        lastIndex = i;
+        cb.checked = newChecked;
+        label.classList.toggle('selected', newChecked);
+        addLastIdx = idx;
       }
-      updateUI();
+      updateAddUI();
     });
+    grid.appendChild(label);
   });
 
-  document.getElementById('selectAllBtn').addEventListener('click', () => {
-    checkboxes.forEach((cb, i) => { cb.checked = true; labels[i].classList.add('selected'); });
-    lastIndex = labels.length - 1;
-    updateUI();
-  });
-
-  document.getElementById('clearBtn').addEventListener('click', () => {
-    checkboxes.forEach((cb, i) => { cb.checked = false; labels[i].classList.remove('selected'); });
-    lastIndex = null;
-    updateUI();
-  });
+  pageInfo.textContent = 'Page ' + addPage + ' / ' + addTotalPages;
+  document.getElementById('addPrevBtn').disabled = addPage <= 1;
+  document.getElementById('addNextBtn').disabled = addPage >= addTotalPages;
+  document.getElementById('addActions').style.display = 'flex';
+  updateAddUI();
+  addLoading = false;
 }
+
+function updateAddUI() {
+  const n = addCheckboxes.filter(c => c.checked).length;
+  document.getElementById('selectionCount').textContent = n > 0 ? n + ' selected' : '';
+  document.getElementById('addBtn').disabled = n === 0;
+}
+
+document.getElementById('addPrevBtn')?.addEventListener('click', () => {
+  if (addPage > 1) loadAddPage(addPage - 1, document.getElementById('photoSearchInput').value);
+});
+document.getElementById('addNextBtn')?.addEventListener('click', () => {
+  if (addPage < addTotalPages) loadAddPage(addPage + 1, document.getElementById('photoSearchInput').value);
+});
+document.getElementById('addSelectAll')?.addEventListener('click', () => {
+  addCheckboxes.forEach((cb, i) => { cb.checked = true; addLabels[i].classList.add('selected'); });
+  addLastIdx = addLabels.length - 1; updateAddUI();
+});
+document.getElementById('addClear')?.addEventListener('click', () => {
+  addCheckboxes.forEach((cb, i) => { cb.checked = false; addLabels[i].classList.remove('selected'); });
+  addLastIdx = null; updateAddUI();
+});
+
+let searchTimer;
+document.getElementById('photoSearchInput')?.addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => loadAddPage(1, e.target.value), 300);
+});
 </script>
 <script>
 async function startRegen() {
@@ -307,7 +400,7 @@ async function startRegen() {
   const label = document.getElementById('regenLabel');
   btn.disabled = true;
   progress.style.display = 'block';
-  label.textContent = 'Starting…';
+  label.textContent = 'Starting...';
 
   const resp = await fetch('/admin/albums/{{ album.id }}/regen-thumbs', { method: 'POST' });
   const reader = resp.body.getReader();
@@ -327,13 +420,13 @@ async function startRegen() {
         const ev = JSON.parse(line);
         if (ev.done) {
           fill.style.width = '100%';
-          const errMsg = ev.errors > 0 ? ` (${ev.errors} failed)` : '';
-          label.textContent = `Done — ${ev.total} thumbnails regenerated${errMsg}`;
+          const errMsg = ev.errors > 0 ? ' (' + ev.errors + ' failed)' : '';
+          label.textContent = 'Done - ' + ev.total + ' thumbnails regenerated' + errMsg;
           btn.disabled = false;
         } else {
           const pct = ev.total > 0 ? Math.round((ev.current / ev.total) * 100) : 0;
           fill.style.width = pct + '%';
-          label.textContent = `${ev.current} / ${ev.total}`;
+          label.textContent = ev.current + ' / ' + ev.total;
         }
       } catch (_) {}
     }

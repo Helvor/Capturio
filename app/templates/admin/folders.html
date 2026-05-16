@@ -32,12 +32,17 @@
       </thead>
       <tbody>
         {% for folder in folders %}
-        <tr>
+        <tr data-folder-row="{{ folder.rel_path }}">
           <td>
             <a href="/admin/folders?path={{ folder.rel_path }}" class="folder-link">
               &#128193; {{ folder.name }}
               {% if folder.has_subfolders %}<span class="muted-cell"> &rsaquo;</span>{% endif %}
             </a>
+            {% if folder.image_count > 0 %}
+            <button class="btn-xs btn-ghost" style="margin-left:6px"
+                    onclick="toggleFileList(this, '{{ folder.rel_path | e }}')"
+                    data-open="0">&#128065; Files</button>
+            {% endif %}
           </td>
           <td class="muted-cell">{{ folder.image_count }}</td>
           <td class="muted-cell">
@@ -55,11 +60,14 @@
           </td>
           <td>
             {% if folder.image_count > 0 %}
-            <button class="btn-xs" onclick="openImport('{{ folder.rel_path }}', '{{ folder.name }}')">
+            <button class="btn-xs" onclick="openImport('{{ folder.rel_path | e }}', '{{ folder.name | e }}')">
               &#8659; Import
             </button>
             {% endif %}
           </td>
+        </tr>
+        <tr class="folder-files-row" id="files-{{ loop.index }}" style="display:none">
+          <td colspan="4" class="folder-files-cell"></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -121,6 +129,43 @@
 
 {% block scripts %}
 <script>
+const fileListCache = {};
+async function toggleFileList(btn, path) {
+  const idx = btn.closest('tr').nextElementSibling;
+  const cell = idx.querySelector('.folder-files-cell');
+  const isOpen = btn.dataset.open === '1';
+  if (isOpen) {
+    idx.style.display = 'none';
+    btn.dataset.open = '0';
+    btn.textContent = '👁 Files';
+    return;
+  }
+  btn.dataset.open = '1';
+  btn.textContent = '▲ Hide';
+  idx.style.display = '';
+  if (fileListCache[path]) {
+    renderFileList(cell, fileListCache[path]);
+    return;
+  }
+  cell.innerHTML = '<span class="muted-cell" style="padding:0.5rem;display:block">Loading...</span>';
+  try {
+    const data = await fetch('/admin/api/folder-files?path=' + encodeURIComponent(path)).then(r => r.json());
+    fileListCache[path] = data.files;
+    renderFileList(cell, data.files);
+  } catch (e) {
+    cell.innerHTML = '<span class="muted-cell" style="padding:0.5rem;display:block">Error loading files</span>';
+  }
+}
+
+function renderFileList(cell, files) {
+  if (!files || files.length === 0) {
+    cell.innerHTML = '<span class="muted-cell" style="padding:0.5rem;display:block">No image files found</span>';
+    return;
+  }
+  const html = files.map(f => '<span class="file-chip ' + (f.imported ? 'file-chip-done' : '') + '">' + f.filename + '</span>').join('');
+  cell.innerHTML = '<div class="file-chips">' + html + '</div>';
+}
+
 function openImport(relPath, name) {
   document.getElementById('modalFolderPath').value = relPath;
   document.getElementById('modalFolderName').textContent = name;
@@ -170,7 +215,7 @@ document.getElementById('importModal').addEventListener('click', function(e) {
   if (e.target === this) closeImport();
 });
 
-// ── Job polling ────────────────────────────────────────────────────────────────
+// -- Job polling
 const banner = document.getElementById('jobsBanner');
 
 async function pollJobs() {
@@ -183,10 +228,10 @@ async function pollJobs() {
     } else {
       const lines = jobs.map(j => {
         if (j.status === 'done') {
-          return `<span class="job-done">&#10003; ${j.folder} — ${j.new} imported, ${j.skipped} skipped</span>`;
+          return '<span class="job-done">&#10003; ' + j.folder + ' — ' + j.new + ' imported, ' + j.skipped + ' skipped</span>';
         }
         const pct = j.total > 0 ? Math.round((j.current / j.total) * 100) : 0;
-        return `<span class="job-running">&#8635; ${j.folder} — ${j.current}/${j.total} (${pct}%)</span>`;
+        return '<span class="job-running">&#8635; ' + j.folder + ' — ' + j.current + '/' + j.total + ' (' + pct + '%)</span>';
       });
       banner.innerHTML = lines.join('');
       banner.style.display = 'flex';
