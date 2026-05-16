@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, String
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -97,7 +97,7 @@ async def _photo_queries(album: str | None, db: AsyncSession):
         Photo.is_published == True,
         or_(not_in_any_album, in_public_album),
     )
-    data_q = select(Photo).where(gallery_filter).order_by(Photo.uploaded_at.desc())
+    data_q = select(Photo).where(gallery_filter).order_by(func.md5(func.cast(Photo.id, String)))
     count_q = select(func.count(Photo.id)).where(gallery_filter)
     return data_q, count_q
 
@@ -140,7 +140,7 @@ async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession =
     page = min(max(1, page), total_pages)
     photos = (await db.execute(data_q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE))).scalars().all()
     return JSONResponse({
-        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
+        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename, "w": p.exif_width, "h": p.exif_height} for p in photos],
         "page": page,
         "total_pages": total_pages,
         "has_more": page < total_pages,
@@ -343,7 +343,7 @@ async def api_album_photos(slug: str, page: int = 1, db: AsyncSession = Depends(
     )).scalars().all()
 
     return JSONResponse({
-        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename} for p in photos],
+        "photos": [{"id": str(p.id), "title": p.title or "", "filename": p.filename, "w": p.exif_width, "h": p.exif_height} for p in photos],
         "page": page,
         "total_pages": total_pages,
         "has_more": page < total_pages,
