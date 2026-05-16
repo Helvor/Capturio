@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Gallery — Capturio{% endblock %}
+{% block head %}<meta name="gallery-seed" content="{{ gallery_seed or '' }}">{% endblock %}
 
 {% block content %}
 {% if announcements %}
@@ -52,6 +53,7 @@
   let page = {{ page }};
   const totalPages = {{ total_pages }};
   const album = {{ ('"' ~ current_album ~ '"') | safe if current_album else 'null' }};
+  const seed = document.querySelector('meta[name="gallery-seed"]')?.content || '';
   let loading = false;
 
   async function loadMore() {
@@ -60,7 +62,9 @@
     sentinel.classList.add('loading');
 
     try {
-      const url = '/api/photos?page=' + (page + 1) + (album ? '&album=' + encodeURIComponent(album) : '');
+      const url = '/api/photos?page=' + (page + 1)
+        + (album ? '&album=' + encodeURIComponent(album) : '')
+        + (seed ? '&seed=' + encodeURIComponent(seed) : '');
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(resp.status);
       const data = await resp.json();

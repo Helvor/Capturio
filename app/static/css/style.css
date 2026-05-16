@@ -1164,125 +1164,7 @@ a.space-section-title:hover { color: var(--accent); }
 }
 .space-option:hover { background: var(--accent-dim); }
 
-/* ── Album photo grid (admin edit) ───────────────────────────────────────────── */
-.album-photo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 8px;
-}
-.album-photo-item {
-  cursor: pointer;
-  border-radius: var(--radius);
-  overflow: hidden;
-  border: 2px solid transparent;
-  transition: border-color 0.15s;
-}
-.album-photo-item.selected { border-color: var(--accent); }
-.album-photo-item.is-cover { border-color: var(--blue); }
-.album-photo-thumb {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  background: var(--surface);
-}
-.album-photo-thumb img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: opacity 0.2s;
-}
-.album-photo-overlay {
-  position: absolute; inset: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 50%);
-}
-.album-photo-item:hover .album-photo-overlay { opacity: 1; }
-.album-photo-cb-wrap { cursor: pointer; }
-.album-photo-cb-wrap input { cursor: pointer; }
-.album-photo-reorder { display: flex; gap: 2px; }
-.btn-icon {
-  background: rgba(0,0,0,0.6);
-  color: #fff;
-  border: none;
-  border-radius: 3px;
-  padding: 2px 5px;
-  font-size: 11px;
-  cursor: pointer;
-  line-height: 1.4;
-}
-.btn-icon:hover { background: rgba(0,0,0,0.85); }
-.cover-btn {
-  position: absolute;
-  bottom: 4px; right: 4px;
-  background: rgba(0,0,0,0.5);
-  color: #aaa;
-  border: none;
-  border-radius: 3px;
-  font-size: 14px;
-  padding: 2px 5px;
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-  opacity: 0;
-}
-.album-photo-item:hover .cover-btn { opacity: 1; }
-.album-photo-item.is-cover .cover-btn { opacity: 1; color: var(--blue); }
-.cover-btn:hover { background: rgba(0,0,0,0.8); color: var(--blue); }
-.album-photo-name {
-  display: block;
-  font-size: 10px;
-  color: var(--muted);
-  padding: 3px 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: var(--surface);
-}
-
-/* ── Admin search input ───────────────────────────────────────────────────────── */
-.admin-search-input {
-  flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  padding: 7px 12px;
-  font-size: 13px;
-}
-.admin-search-input:focus { border-color: var(--muted); outline: none; }
-
-/* ── Bulk action bar ─────────────────────────────────────────────────────────── */
-.bulk-action-bar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 8px;
-}
-.btn-sm { padding: 5px 10px; font-size: 12px; }
-
-/* ── Photo row selected state ────────────────────────────────────────────────── */
-.photo-row.selected { background: rgba(255,255,255,0.04); }
-.photos-table td { vertical-align: middle; }
-
-/* ── Folder file chips ───────────────────────────────────────────────────────── */
-.folder-files-row td { padding: 0; }
-.folder-files-cell { padding: 8px 12px !important; background: var(--surface); }
-.file-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.file-chip {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 7px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.file-chip-done { border-color: var(--green); color: var(--green); }
+/* album-photo-grid, bulk-action-bar, photo-row, folder-files — see below */
 
 /* ── Section header right (album dates) ──────────────────────────────────────── */
 .section-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
@@ -1411,7 +1293,7 @@ a.space-section-title:hover { color: var(--accent); }
 /* ── Album photo grid (admin edit) ───────────────────────────────────────────── */
 .album-photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, 140px);
   gap: 8px;
 }
 .album-photo-item {
@@ -1509,22 +1391,39 @@ a.space-section-title:hover { color: var(--accent); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 
 /* ── Photo row selected state ────────────────────────────────────────────────── */
-.photo-row.selected { background: rgba(255,255,255,0.04); }
+.photo-row { transition: background 0.12s; }
+.photo-row:hover { background: rgba(255,255,255,0.03); }
+.photo-row.selected { background: rgba(255,255,255,0.06); }
 .photos-table td { vertical-align: middle; }
+.photo-sel-bar { width: 3px !important; padding: 0 !important; background: transparent; transition: background 0.15s; }
+.photo-row:hover .photo-sel-bar { background: var(--muted); }
+.photo-row.selected .photo-sel-bar { background: var(--accent); }
+.nowrap-cell { white-space: nowrap; }
+.btn-select-all { background: none; border: none; color: var(--muted); font-size: 11px; cursor: pointer; padding: 0; }
+.btn-select-all:hover { color: var(--text); }
 
-/* ── Folder file chips ───────────────────────────────────────────────────────── */
+/* ── Folder tree file list ───────────────────────────────────────────────────── */
+.folder-name-row { display: flex; align-items: center; gap: 6px; }
+.folder-expand-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.folder-expand-btn:hover { color: var(--text); }
+.folder-expand-placeholder { display: inline-block; width: 14px; flex-shrink: 0; }
+.folder-name-link { display: flex; align-items: center; gap: 4px; }
 .folder-files-row td { padding: 0 !important; }
 .folder-files-cell { padding: 8px 12px !important; background: var(--surface); }
-.file-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0; }
-.file-chip {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 7px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.file-chip-done { border-color: var(--green); color: var(--green); }
+.folder-file-list { list-style: none; padding: 4px 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+.file-list-item { font-size: 12px; color: var(--muted); padding: 2px 4px; }
+.file-list-item::before { content: "○ "; font-size: 9px; }
+.file-list-item.done { color: var(--green); }
+.file-list-item.done::before { content: "● "; }
 
 /* ── Section header right (album dates) ──────────────────────────────────────── */
 .section-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }

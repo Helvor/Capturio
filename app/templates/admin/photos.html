@@ -56,10 +56,10 @@
     <table class="admin-table photos-table">
       <thead>
         <tr>
+          <th class="photo-cb-col" style="width:4px;padding:0"></th>
           <th style="width:32px">
-            <input type="checkbox" id="selectAllCb" title="Select all" />
+            <button type="button" id="selectAllBtn" class="btn-select-all">Select all</button>
           </th>
-          <th>Thumb</th>
           <th>Filename</th>
           <th>Camera</th>
           <th>Status</th>
@@ -70,10 +70,9 @@
       <tbody>
         {% for photo in photos %}
         <tr class="photo-row" data-id="{{ photo.id }}">
-          <td>
-            <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="photo-row-cb" />
-          </td>
-          <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" /></td>
+          <td class="photo-sel-bar"></td>
+          <td><img src="/photos/{{ photo.id }}/thumb" class="table-thumb" alt="" />
+              <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="photo-row-cb" style="display:none" /></td>
           <td class="filename-cell">{{ photo.filename }}</td>
           <td class="muted-cell">{{ photo.exif_camera or '—' }}</td>
           <td>
@@ -83,8 +82,8 @@
             <span class="badge badge-grey">Draft</span>
             {% endif %}
           </td>
-          <td class="muted-cell">{{ photo.uploaded_at.strftime('%Y-%m-%d') }}</td>
-          <td class="actions-cell">
+          <td class="muted-cell nowrap-cell">{{ photo.uploaded_at.strftime('%Y-%m-%d') }}</td>
+          <td class="actions-cell nowrap-cell">
             <a href="/admin/photos/{{ photo.id }}/edit" class="btn-xs">Edit</a>
             <form action="/admin/photos/{{ photo.id }}/toggle-publish" method="post" style="display:inline">
               <button type="submit" class="btn-xs">{% if photo.is_published %}Unpublish{% else %}Publish{% endif %}</button>
@@ -138,25 +137,26 @@ setInterval(pollRegen, 2000);
 // -- Multi-select
 const rows = Array.from(document.querySelectorAll('.photo-row'));
 const cbs = rows.map(r => r.querySelector('.photo-row-cb'));
-const selectAll = document.getElementById('selectAllCb');
+const selectAllBtn = document.getElementById('selectAllBtn');
 const bulkBar = document.getElementById('bulkBar');
 const bulkCount = document.getElementById('bulkCount');
 let lastIdx = null;
+let allSelected = false;
 
 function updateBulkUI() {
   const n = cbs.filter(c => c.checked).length;
   bulkCount.textContent = n > 0 ? n + ' selected' : '';
   bulkBar.style.display = n > 0 ? 'flex' : 'none';
-  selectAll.indeterminate = n > 0 && n < cbs.length;
-  selectAll.checked = n === cbs.length && cbs.length > 0;
+  allSelected = n === cbs.length && cbs.length > 0;
+  selectAllBtn.textContent = allSelected ? 'Clear' : 'Select all';
 }
 
 rows.forEach((row, i) => {
   row.style.cursor = 'pointer';
   row.addEventListener('click', (e) => {
-    if (e.target.closest('.actions-cell') || e.target.tagName === 'A') return;
+    if (e.target.closest('.actions-cell') || e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
     const cb = cbs[i];
-    const newChecked = e.target === cb ? cb.checked : !cb.checked;
+    const newChecked = !cb.checked;
     if (e.shiftKey && lastIdx !== null) {
       const from = Math.min(lastIdx, i), to = Math.max(lastIdx, i);
       for (let j = from; j <= to; j++) {
@@ -164,7 +164,7 @@ rows.forEach((row, i) => {
         rows[j].classList.toggle('selected', newChecked);
       }
     } else {
-      if (e.target !== cb) cb.checked = newChecked;
+      cb.checked = newChecked;
       row.classList.toggle('selected', newChecked);
       lastIdx = i;
     }
@@ -172,15 +172,15 @@ rows.forEach((row, i) => {
   });
 });
 
-selectAll.addEventListener('change', () => {
-  cbs.forEach((cb, i) => { cb.checked = selectAll.checked; rows[i].classList.toggle('selected', selectAll.checked); });
+selectAllBtn.addEventListener('click', () => {
+  const target = !allSelected;
+  cbs.forEach((cb, i) => { cb.checked = target; rows[i].classList.toggle('selected', target); });
   lastIdx = null;
   updateBulkUI();
 });
 
 document.getElementById('clearBulkBtn').addEventListener('click', () => {
   cbs.forEach((cb, i) => { cb.checked = false; rows[i].classList.remove('selected'); });
-  selectAll.checked = false;
   lastIdx = null;
   updateBulkUI();
 });

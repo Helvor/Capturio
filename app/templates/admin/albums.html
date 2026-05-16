@@ -12,16 +12,12 @@
     <input type="text" name="title" placeholder="Title" required />
     <input type="text" name="slug" placeholder="slug-url" required />
     <input type="text" name="description" placeholder="Description (optional)" />
-    <div class="space-picker" id="spacePicker">
-      <input type="hidden" name="space_id" id="spaceIdInput" value="" />
-      <input type="text" id="spaceSearchInput" placeholder="No space (search to pick…)" autocomplete="off" class="space-search-input" />
-      <div class="space-dropdown" id="spaceDropdown" style="display:none">
-        <div class="space-option" data-id="" data-label="— No space —">— No space —</div>
-        {% for space in spaces %}
-        <div class="space-option" data-id="{{ space.id }}" data-label="{{ space.title }}">{{ space.title }}</div>
-        {% endfor %}
-      </div>
-    </div>
+    <select name="space_id">
+      <option value="">— No space —</option>
+      {% for space in spaces %}
+      <option value="{{ space.id }}">{{ space.title }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn-primary">Create</button>
   </form>
 </div>
@@ -73,41 +69,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-(function () {
-  const searchInput = document.getElementById('spaceSearchInput');
-  const dropdown = document.getElementById('spaceDropdown');
-  const hiddenInput = document.getElementById('spaceIdInput');
-  const options = Array.from(dropdown.querySelectorAll('.space-option'));
-  if (!searchInput) return;
-
-  function showDropdown(filter) {
-    const q = (filter || '').toLowerCase();
-    let anyVisible = false;
-    options.forEach(opt => {
-      const match = !q || opt.dataset.label.toLowerCase().includes(q);
-      opt.style.display = match ? '' : 'none';
-      if (match) anyVisible = true;
-    });
-    dropdown.style.display = anyVisible ? 'block' : 'none';
-  }
-
-  searchInput.addEventListener('focus', () => showDropdown(searchInput.value));
-  searchInput.addEventListener('input', () => showDropdown(searchInput.value));
-
-  options.forEach(opt => {
-    opt.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      hiddenInput.value = opt.dataset.id;
-      searchInput.value = opt.dataset.id ? opt.dataset.label : '';
-      dropdown.style.display = 'none';
-    });
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#spacePicker')) dropdown.style.display = 'none';
-  });
-})();
-</script>
 {% endblock %}
