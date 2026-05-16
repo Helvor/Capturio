@@ -32,17 +32,22 @@
       </thead>
       <tbody>
         {% for folder in folders %}
-        <tr data-folder-row="{{ folder.rel_path }}">
+        <tr>
           <td>
-            <a href="/admin/folders?path={{ folder.rel_path }}" class="folder-link">
-              &#128193; {{ folder.name }}
-              {% if folder.has_subfolders %}<span class="muted-cell"> &rsaquo;</span>{% endif %}
-            </a>
-            {% if folder.image_count > 0 %}
-            <button class="btn-xs btn-ghost" style="margin-left:6px"
-                    onclick="toggleFileList(this, '{{ folder.rel_path | e }}')"
-                    data-open="0">&#128065; Files</button>
-            {% endif %}
+            <div class="folder-name-row">
+              {% if folder.image_count > 0 %}
+              <button type="button" class="folder-expand-btn" data-open="0" data-idx="{{ loop.index }}"
+                      onclick="toggleFileList(this, '{{ folder.rel_path | e }}', {{ loop.index }})">&#9658;</button>
+              {% else %}
+              <span class="folder-expand-placeholder"></span>
+              {% endif %}
+              <a href="/admin/folders?path={{ folder.rel_path }}" class="folder-name-link">
+                &#128193; {{ folder.name }}
+              </a>
+              {% if folder.has_subfolders %}
+              <span class="muted-cell" style="font-size:11px">&#8594; subfolders</span>
+              {% endif %}
+            </div>
           </td>
           <td class="muted-cell">{{ folder.image_count }}</td>
           <td class="muted-cell">
@@ -66,8 +71,8 @@
             {% endif %}
           </td>
         </tr>
-        <tr class="folder-files-row" id="files-{{ loop.index }}" style="display:none">
-          <td colspan="4" class="folder-files-cell"></td>
+        <tr class="folder-files-row" id="files-row-{{ loop.index }}" style="display:none">
+          <td colspan="4" class="folder-files-cell" id="files-cell-{{ loop.index }}"></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -130,24 +135,24 @@
 {% block scripts %}
 <script>
 const fileListCache = {};
-async function toggleFileList(btn, path) {
-  const idx = btn.closest('tr').nextElementSibling;
-  const cell = idx.querySelector('.folder-files-cell');
+async function toggleFileList(btn, path, rowIdx) {
+  const row = document.getElementById('files-row-' + rowIdx);
+  const cell = document.getElementById('files-cell-' + rowIdx);
   const isOpen = btn.dataset.open === '1';
   if (isOpen) {
-    idx.style.display = 'none';
+    row.style.display = 'none';
     btn.dataset.open = '0';
-    btn.textContent = '👁 Files';
+    btn.textContent = '▶';
     return;
   }
   btn.dataset.open = '1';
-  btn.textContent = '▲ Hide';
-  idx.style.display = '';
+  btn.textContent = '▼';
+  row.style.display = '';
   if (fileListCache[path]) {
     renderFileList(cell, fileListCache[path]);
     return;
   }
-  cell.innerHTML = '<span class="muted-cell" style="padding:0.5rem;display:block">Loading...</span>';
+  cell.innerHTML = '<span class="muted-cell" style="padding:0.5rem;display:block">Loading…</span>';
   try {
     const data = await fetch('/admin/api/folder-files?path=' + encodeURIComponent(path)).then(r => r.json());
     fileListCache[path] = data.files;
@@ -159,11 +164,19 @@ async function toggleFileList(btn, path) {
 
 function renderFileList(cell, files) {
   if (!files || files.length === 0) {
-    cell.innerHTML = '<span class="muted-cell" style="padding:0.5rem;display:block">No image files found</span>';
+    cell.innerHTML = '<p class="muted-cell" style="padding:0.5rem">No image files found</p>';
     return;
   }
-  const html = files.map(f => '<span class="file-chip ' + (f.imported ? 'file-chip-done' : '') + '">' + f.filename + '</span>').join('');
-  cell.innerHTML = '<div class="file-chips">' + html + '</div>';
+  const ul = document.createElement('ul');
+  ul.className = 'folder-file-list';
+  files.forEach(f => {
+    const li = document.createElement('li');
+    li.className = 'file-list-item' + (f.imported ? ' done' : '');
+    li.textContent = f.filename;
+    ul.appendChild(li);
+  });
+  cell.innerHTML = '';
+  cell.appendChild(ul);
 }
 
 function openImport(relPath, name) {

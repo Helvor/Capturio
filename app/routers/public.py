@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import os
 import math
+import random as _random
 
 import bcrypt
 import markdown as md
@@ -60,7 +61,7 @@ PLACEHOLDER = os.path.join(os.path.dirname(__file__), "..", "static", "placehold
 PAGE_SIZE = 24
 
 
-async def _photo_queries(album: str | None, db: AsyncSession):
+async def _photo_queries(album: str | None, db: AsyncSession, seed: str = ""):
     """Return (data_query, count_query) for the given album filter."""
     from sqlalchemy import exists as sa_exists, or_
 
@@ -97,7 +98,8 @@ async def _photo_queries(album: str | None, db: AsyncSession):
         Photo.is_published == True,
         or_(not_in_any_album, in_public_album),
     )
-    data_q = select(Photo).where(gallery_filter).order_by(func.md5(func.cast(Photo.id, String)))
+    order_expr = func.md5(func.cast(Photo.id, String).concat(func.literal(seed))) if seed else func.md5(func.cast(Photo.id, String))
+    data_q = select(Photo).where(gallery_filter).order_by(order_expr)
     count_q = select(func.count(Photo.id)).where(gallery_filter)
     return data_q, count_q
 
@@ -114,7 +116,8 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
     albums_q = select(Album).where(and_(Album.is_published == True, Album.is_private == False)).order_by(Album.sort_order)
     albums = (await db.execute(albums_q)).scalars().all()
 
-    data_q, count_q = await _photo_queries(album, db)
+    seed = str(_random.randint(100000, 999999)) if not album else ""
+    data_q, count_q = await _photo_queries(album, db, seed)
     total = (await db.execute(count_q)).scalar()
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
     page = min(page, total_pages)
@@ -129,12 +132,13 @@ async def home(request: Request, album: str | None = None, page: int = 1, db: As
         "page": page,
         "total_pages": total_pages,
         "settings": settings,
+        "gallery_seed": seed,
     })
 
 
 @router.get("/api/photos")
-async def api_photos(album: str | None = None, page: int = 1, db: AsyncSession = Depends(get_db)):
-    data_q, count_q = await _photo_queries(album, db)
+async def api_photos(album: str | None = None, page: int = 1, seed: str = "", db: AsyncSession = Depends(get_db)):
+    data_q, count_q = await _photo_queries(album, db, seed)
     total = (await db.execute(count_q)).scalar()
     total_pages = max(1, math.ceil(total / PAGE_SIZE))
     page = min(max(1, page), total_pages)

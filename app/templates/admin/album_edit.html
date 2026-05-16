@@ -129,20 +129,14 @@
               <input type="checkbox" name="photo_ids" value="{{ photo.id }}" class="album-row-cb" />
             </label>
             <div class="album-photo-reorder">
-              <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:contents">
-                <input type="hidden" name="direction" value="up" />
-                <button type="submit" class="btn-icon" title="Move up">&#8593;</button>
-              </form>
-              <form action="/admin/albums/{{ album.id }}/photos/{{ photo.id }}/move" method="post" style="display:contents">
-                <input type="hidden" name="direction" value="down" />
-                <button type="submit" class="btn-icon" title="Move down">&#8595;</button>
-              </form>
+              <button type="button" class="btn-icon" title="Move up"
+                      onclick="reorderPhoto('{{ photo.id }}', 'up')">&#8593;</button>
+              <button type="button" class="btn-icon" title="Move down"
+                      onclick="reorderPhoto('{{ photo.id }}', 'down')">&#8595;</button>
             </div>
           </div>
-          <form action="/admin/albums/{{ album.id }}/set-cover" method="post" class="cover-form" style="display:contents">
-            <input type="hidden" name="photo_id" value="{{ photo.id }}" />
-            <button type="submit" class="cover-btn" title="Set as cover">&#9733;</button>
-          </form>
+          <button type="button" class="cover-btn" title="Set as cover"
+                  onclick="setCover('{{ photo.id }}')">&#9733;</button>
         </div>
         <span class="album-photo-name">{{ photo.filename }}</span>
       </div>
@@ -242,6 +236,19 @@ function copyShareLink() {
   });
 })();
 
+// -- Reorder + cover via fetch (avoids nested form issue)
+const ALBUM_REORDER_ID = '{{ album.id }}';
+async function reorderPhoto(photoId, direction) {
+  const body = new URLSearchParams({ direction });
+  await fetch(`/admin/albums/${ALBUM_REORDER_ID}/photos/${photoId}/move`, { method: 'POST', body });
+  window.location.reload();
+}
+async function setCover(photoId) {
+  const body = new URLSearchParams({ photo_id: photoId });
+  await fetch(`/admin/albums/${ALBUM_REORDER_ID}/set-cover`, { method: 'POST', body });
+  window.location.reload();
+}
+
 // -- Album photos grid: remove selection
 const albumPhotoGrid = document.getElementById('albumPhotoGrid');
 if (albumPhotoGrid) {
@@ -259,7 +266,7 @@ if (albumPhotoGrid) {
 
   items.forEach((item, i) => {
     item.addEventListener('click', (e) => {
-      if (e.target.closest('.album-photo-overlay') || e.target.closest('.cover-btn') || e.target.closest('.cover-form')) return;
+      if (e.target.closest('.album-photo-overlay') || e.target.closest('.cover-btn')) return;
       const cb = cbs[i];
       const newChecked = e.target === cb ? cb.checked : !cb.checked;
       if (e.shiftKey && lastIdx !== null) {
