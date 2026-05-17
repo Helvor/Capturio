@@ -16,16 +16,35 @@
           onsubmit="return confirm('Regenerate all thumbnails in background? Progress visible on Dashboard.')">
       <button type="submit" class="btn-secondary">Regen thumbnails</button>
     </form>
-    <form action="/admin/photos/match-raw-meta-bg" method="post"
-          onsubmit="return confirm('Scan RAW files to fill missing metadata on imported JPEGs?\n\nThis matches e.g. DSC0043.ARW → DSC0043-edit.jpg and copies camera, lens, exposure info.')">
-      <button type="submit" class="btn-secondary">Match RAW metadata</button>
-    </form>
+    <button type="button" class="btn-secondary" onclick="document.getElementById('matchRawDialog').showModal()">Match RAW metadata</button>
     <a href="/admin/folders" class="btn-primary">&#128193; Import</a>
   </div>
 </div>
 
 <div id="regenBanner" class="jobs-banner" style="display:none"></div>
 <div id="matchRawBanner" class="jobs-banner" style="display:none"></div>
+
+<dialog id="matchRawDialog" class="native-dialog">
+  <form action="/admin/photos/match-raw-meta-bg" method="post" class="modal-form">
+    <h2 class="modal-title">Match RAW metadata</h2>
+    <p class="muted-cell" style="font-size:12px;margin:0">
+      Scan RAW files (ARW / NEF / DNG / CR2 / RAF / ORF / RW2) and copy camera, lens
+      and exposure info onto imported JPEGs that have no metadata. Matching rule:
+      RAW base name is a prefix of the JPEG base name (e.g. <code>DSC0043.ARW</code> → <code>DSC0043-edit.jpg</code>).
+    </p>
+    <div class="form-group">
+      <label>RAW folder path <span class="form-hint">(optional)</span></label>
+      <input type="text" name="raw_dir" placeholder="Leave empty to search each photo's own folder" />
+      <p class="muted-cell" style="font-size:11px;margin:4px 0 0">
+        Relative to the photos directory, or absolute. Scans recursively.
+      </p>
+    </div>
+    <div class="modal-actions">
+      <button type="submit" class="btn-primary">Run on all photos</button>
+      <button type="button" class="btn-secondary" onclick="document.getElementById('matchRawDialog').close()">Cancel</button>
+    </div>
+  </form>
+</dialog>
 
 <section class="stats-block">
   <div class="block-head">
