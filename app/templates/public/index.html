@@ -27,7 +27,7 @@
 {% if photos %}
 <div class="photo-grid" id="photoGrid">
   {% for photo in photos %}
-  <a href="/photos/{{ photo.id }}{% if current_album %}?album={{ current_album }}{% endif %}" class="photo-card" data-photo-id="{{ photo.id }}" style="aspect-ratio:{{ photo.exif_width or 3 }}/{{ photo.exif_height or 2 }}">
+  <a href="/photos/{{ photo.id }}{% if current_album %}?album={{ current_album }}{% endif %}" class="photo-card" data-photo-id="{{ photo.id }}" data-ratio="{{ ((photo.exif_width or 3) / (photo.exif_height or 2))|round(4) }}" style="aspect-ratio:{{ photo.exif_width or 3 }}/{{ photo.exif_height or 2 }}">
     <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" loading="lazy" />
   </a>
   {% endfor %}
@@ -81,6 +81,8 @@
         a.href = '/photos/' + photo.id + (album ? '?album=' + encodeURIComponent(album) : '');
         a.className = 'photo-card';
         a.dataset.photoId = photo.id;
+        const ratio = (photo.w && photo.h) ? (photo.w / photo.h) : 1.5;
+        a.dataset.ratio = ratio.toFixed(4);
         a.style.aspectRatio = (photo.w && photo.h) ? (photo.w + '/' + photo.h) : '3/2';
         const img = document.createElement('img');
         img.src = '/photos/' + photo.id + '/thumb';
@@ -89,6 +91,7 @@
         if (typeof bindPhotoFade === 'function') bindPhotoFade(img);
         a.appendChild(img);
         grid.appendChild(a);
+        if (typeof applyMasonrySpan === 'function') applyMasonrySpan(a);
       }
 
       if (!data.has_more) {

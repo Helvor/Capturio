@@ -8,6 +8,41 @@ function bindPhotoFade(img) {
   }
 }
 
+/* ── Masonry: compute grid-row span from aspect ratio ───────────────────── */
+const MASONRY_ROW_H = 4;
+const MASONRY_GAP = 3;
+
+function applyMasonrySpan(card) {
+  const ratio = parseFloat(card.dataset.ratio);
+  if (!ratio || ratio <= 0) return;
+  const w = card.offsetWidth;
+  if (!w) return;
+  const h = w / ratio;
+  const span = Math.max(1, Math.ceil((h + MASONRY_GAP) / (MASONRY_ROW_H + MASONRY_GAP)));
+  card.style.gridRow = 'span ' + span;
+  card.classList.add('spanned');
+}
+
+function applyMasonryAll(root) {
+  const scope = root || document;
+  scope.querySelectorAll('.photo-card').forEach(applyMasonrySpan);
+}
+
+let _masonryRaf = null;
+function scheduleMasonryRelayout() {
+  if (_masonryRaf) return;
+  _masonryRaf = requestAnimationFrame(() => {
+    _masonryRaf = null;
+    applyMasonryAll();
+  });
+}
+
+window.applyMasonrySpan = applyMasonrySpan;
+window.applyMasonryAll = applyMasonryAll;
+
+applyMasonryAll();
+window.addEventListener('resize', scheduleMasonryRelayout, { passive: true });
+
 // Stagger initial page images so they wave in rather than pop individually
 document.querySelectorAll('.photo-card img').forEach((img, i) => {
   img.style.transitionDelay = Math.min(i * 35, 500) + 'ms';
