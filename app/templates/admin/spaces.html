@@ -14,8 +14,8 @@
     <h2>Create space</h2>
   </div>
   <form action="/admin/spaces/create" method="post" class="inline-form">
-    <input type="text" name="title" placeholder="Title" required />
-    <input type="text" name="slug" placeholder="slug-url" required />
+    <input type="text" name="title" id="spaceTitle" placeholder="Title" required />
+    <input type="text" name="slug" id="spaceSlug" placeholder="slug-url" required />
     <input type="text" name="description" placeholder="Description (optional)" />
     <button type="submit" class="btn-primary">Create</button>
   </form>
@@ -67,4 +67,20 @@
     </tbody>
   </table>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const title = document.getElementById('spaceTitle');
+  const slug = document.getElementById('spaceSlug');
+  let edited = false;
+  function toSlug(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+  title.addEventListener('input', () => { if (!edited) slug.value = toSlug(title.value); });
+  slug.addEventListener('input', () => { edited = slug.value !== ''; });
+})();
+</script>
 {% endblock %}

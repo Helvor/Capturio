@@ -56,7 +56,7 @@
     {% if folder.files %}
     <ul class="folder-file-list">
       {% for f in folder.files %}
-      <li class="file-list-item{% if f.imported %} done{% endif %}" title="{{ f.filename }}{% if f.imported %} (imported){% endif %}">{{ f.filename }}</li>
+      <li class="file-list-item{% if f.imported %} done{% elif f.raw %} raw{% endif %}" title="{{ f.filename }}{% if f.imported %} (imported){% elif f.raw %} (RAW — not importable){% endif %}">{{ f.filename }}</li>
       {% endfor %}
     </ul>
     {% endif %}
@@ -87,18 +87,28 @@
 
       <div class="form-group">
         <label>Add to album</label>
-        <select name="album_id" id="albumSelect" onchange="toggleNewAlbum()">
-          <option value="">— Don't add to an album —</option>
-          <option value="__new__">+ Create new album from this folder</option>
-          {% for album in albums %}
-          <option value="{{ album.id }}">{{ album.title }}</option>
-          {% endfor %}
-        </select>
+        <div class="album-tab-bar" id="albumTabBar">
+          <button type="button" class="album-tab active" data-tab="none" onclick="switchAlbumTab('none')">No album</button>
+          <button type="button" class="album-tab" data-tab="existing" onclick="switchAlbumTab('existing')">Existing album</button>
+          <button type="button" class="album-tab" data-tab="new" onclick="switchAlbumTab('new')">New album</button>
+        </div>
+        <input type="hidden" name="album_id" id="albumIdInput" value="" />
       </div>
 
-      <div id="newAlbumFields" style="display:none">
+      <div id="albumExistingPanel" style="display:none">
+        <div class="album-list" id="albumList">
+          {% for album in albums %}
+          <button type="button" class="album-list-item" data-id="{{ album.id }}" onclick="selectAlbum('{{ album.id }}', this)">{{ album.title }}</button>
+          {% endfor %}
+          {% if not albums %}
+          <p class="muted-cell" style="font-size:12px;margin:0">No albums yet.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div id="albumNewPanel" style="display:none;flex-direction:column;gap:0.9rem">
         <div class="form-group">
-          <label>New album title</label>
+          <label>Album title</label>
           <input type="text" name="new_album_title" id="newAlbumTitle" disabled />
         </div>
         <div class="form-group">
@@ -125,29 +135,34 @@ function openImport(relPath, name) {
   document.getElementById('newAlbumSlug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   document.getElementById('importActions').style.display = 'flex';
   if (window._resetSlugEdited) window._resetSlugEdited();
+  switchAlbumTab('none');
   document.getElementById('importModal').style.display = 'flex';
 }
 
 function closeImport() {
   document.getElementById('importModal').style.display = 'none';
-  document.getElementById('albumSelect').value = '';
-  document.getElementById('newAlbumFields').style.display = 'none';
+  switchAlbumTab('none');
 }
 
-function toggleNewAlbum() {
-  const val = document.getElementById('albumSelect').value;
-  const fields = document.getElementById('newAlbumFields');
+function switchAlbumTab(tab) {
+  document.querySelectorAll('.album-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('albumExistingPanel').style.display = tab === 'existing' ? 'block' : 'none';
+  document.getElementById('albumNewPanel').style.display = tab === 'new' ? 'flex' : 'none';
   const titleEl = document.getElementById('newAlbumTitle');
   const slugEl = document.getElementById('newAlbumSlug');
-  if (val === '__new__') {
-    fields.style.display = 'flex';
-    titleEl.disabled = false;
-    slugEl.disabled = false;
+  if (tab === 'new') {
+    titleEl.disabled = false; slugEl.disabled = false;
+    document.getElementById('albumIdInput').value = '__new__';
   } else {
-    fields.style.display = 'none';
-    titleEl.disabled = true;
-    slugEl.disabled = true;
+    titleEl.disabled = true; slugEl.disabled = true;
+    if (tab === 'none') document.getElementById('albumIdInput').value = '';
   }
+}
+
+function selectAlbum(id, btn) {
+  document.querySelectorAll('.album-list-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('albumIdInput').value = id;
 }
 
 (function() {

@@ -13,17 +13,43 @@
   <div class="block-head">
     <h2>Create album</h2>
   </div>
-  <form action="/admin/albums/create" method="post" class="inline-form">
-    <input type="text" name="title" placeholder="Title" required />
-    <input type="text" name="slug" placeholder="slug-url" required />
-    <input type="text" name="description" placeholder="Description (optional)" />
-    <select name="space_id">
-      <option value="">— No space —</option>
-      {% for space in spaces %}
-      <option value="{{ space.id }}">{{ space.title }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="btn-primary">Create</button>
+  <form action="/admin/albums/create" method="post" class="create-form">
+    <div class="create-form-row">
+      <div class="form-group" style="flex:1">
+        <label>Title</label>
+        <input type="text" name="title" id="albumTitle" placeholder="My album" required />
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Slug</label>
+        <input type="text" name="slug" id="albumSlug" placeholder="my-album" required />
+      </div>
+      <div class="form-group" style="flex:1.5">
+        <label>Description <span class="form-hint">(optional)</span></label>
+        <input type="text" name="description" placeholder="Short description…" />
+      </div>
+    </div>
+    {% if spaces %}
+    <div class="form-group">
+      <label>Space <span class="form-hint">(optional)</span></label>
+      <div class="space-pill-group">
+        <label class="space-pill">
+          <input type="radio" name="space_id" value="" checked />
+          <span>No space</span>
+        </label>
+        {% for space in spaces %}
+        <label class="space-pill">
+          <input type="radio" name="space_id" value="{{ space.id }}" />
+          <span>{{ space.title }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <input type="hidden" name="space_id" value="" />
+    {% endif %}
+    <div>
+      <button type="submit" class="btn-primary">Create album</button>
+    </div>
   </form>
 </section>
 
@@ -66,7 +92,7 @@
         <td class="muted-cell">{{ album.sort_order }}</td>
         <td class="actions-cell">
           <a href="/admin/albums/{{ album.id }}/edit" class="btn-xs">Edit</a>
-          <form action="/admin/albums/{{ album.id }}/delete" method="post" style="display:inline"
+          <form action="/admin/albums/{{ album.id }}/delete" method="post"
                 onsubmit="return confirm('Delete album?')">
             <button type="submit" class="btn-xs btn-danger">Delete</button>
           </form>
@@ -76,4 +102,20 @@
     </tbody>
   </table>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const title = document.getElementById('albumTitle');
+  const slug = document.getElementById('albumSlug');
+  let edited = false;
+  function toSlug(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+  title.addEventListener('input', () => { if (!edited) slug.value = toSlug(title.value); });
+  slug.addEventListener('input', () => { edited = slug.value !== ''; });
+})();
+</script>
 {% endblock %}
