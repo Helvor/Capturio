@@ -3,11 +3,16 @@
 
 {% block content %}
 <div class="admin-page-header">
-  <h1>Albums</h1>
+  <div>
+    <h1>Albums</h1>
+    <p class="page-subtitle">Curated collections of photos shown to your visitors.</p>
+  </div>
 </div>
 
-<div class="admin-section">
-  <h2>Create album</h2>
+<section class="stats-block">
+  <div class="block-head">
+    <h2>Create album</h2>
+  </div>
   <form action="/admin/albums/create" method="post" class="inline-form">
     <input type="text" name="title" placeholder="Title" required />
     <input type="text" name="slug" placeholder="slug-url" required />
@@ -20,9 +25,13 @@
     </select>
     <button type="submit" class="btn-primary">Create</button>
   </form>
-</div>
+</section>
 
-<div class="admin-section">
+<section class="stats-block">
+  <div class="block-head">
+    <h2>All albums</h2>
+    <span class="block-meta">{{ albums|length }} total</span>
+  </div>
   <table class="admin-table">
     <thead>
       <tr>
@@ -66,5 +75,5 @@
       {% endfor %}
     </tbody>
   </table>
-</div>
+</section>
 {% endblock %}

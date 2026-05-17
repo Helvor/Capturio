@@ -165,17 +165,26 @@ def get_folder_tree(base_dir: str, rel_path: str, known_paths: set) -> list[dict
         entry_real = os.path.realpath(entry.path)
         if not entry_real.startswith(base_real):
             continue
-        image_count = _count_images(entry.path)
-        imported_count = sum(
-            1 for f in ([] if image_count == 0 else os.listdir(entry.path))
-            if os.path.join(entry.path, f) in known_paths
-        )
+        files = []
+        try:
+            for fname in sorted(os.listdir(entry.path)):
+                if os.path.splitext(fname)[1].lower() in SUPPORTED_EXTENSIONS:
+                    fpath = os.path.join(entry.path, fname)
+                    files.append({
+                        "filename": fname,
+                        "imported": fpath in known_paths,
+                    })
+        except (PermissionError, FileNotFoundError):
+            pass
+        image_count = len(files)
+        imported_count = sum(1 for f in files if f["imported"])
         child_rel = os.path.relpath(entry.path, base_real)
         folders.append({
             "name": entry.name,
             "rel_path": child_rel,
             "image_count": image_count,
             "imported_count": imported_count,
+            "files": files,
             "has_subfolders": any(e.is_dir() for e in os.scandir(entry.path)
                                   if not e.name.startswith(".")),
         })

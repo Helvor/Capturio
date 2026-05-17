@@ -3,20 +3,29 @@
 
 {% block content %}
 <div class="admin-page-header">
-  <h1>Spaces</h1>
+  <div>
+    <h1>Spaces</h1>
+    <p class="page-subtitle">Group albums under a shared, optionally password-protected space.</p>
+  </div>
 </div>
 
-<div class="admin-section">
-  <h2>Create space</h2>
+<section class="stats-block">
+  <div class="block-head">
+    <h2>Create space</h2>
+  </div>
   <form action="/admin/spaces/create" method="post" class="inline-form">
     <input type="text" name="title" placeholder="Title" required />
     <input type="text" name="slug" placeholder="slug-url" required />
     <input type="text" name="description" placeholder="Description (optional)" />
     <button type="submit" class="btn-primary">Create</button>
   </form>
-</div>
+</section>
 
-<div class="admin-section">
+<section class="stats-block">
+  <div class="block-head">
+    <h2>All spaces</h2>
+    <span class="block-meta">{{ spaces|length }} total</span>
+  </div>
   <table class="admin-table">
     <thead>
       <tr>
@@ -57,5 +66,5 @@
       {% endif %}
     </tbody>
   </table>
-</div>
+</section>
 {% endblock %}
