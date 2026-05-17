@@ -73,6 +73,37 @@ def find_raw_match(jpeg_path: str) -> str | None:
     return best
 
 
+def build_raw_index(search_dir: str) -> dict[str, str]:
+    """Walk ``search_dir`` recursively, return ``{normalized_stem: full_path}``.
+
+    If two RAWs share the same normalized stem, the first one found wins.
+    """
+    index: dict[str, str] = {}
+    if not search_dir or not os.path.isdir(search_dir):
+        return index
+    for root, _, files in os.walk(search_dir):
+        for fname in files:
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in RAW_EXTENSIONS:
+                continue
+            stem = _normalize_stem(os.path.splitext(fname)[0])
+            if len(stem) >= 4 and stem not in index:
+                index[stem] = os.path.join(root, fname)
+    return index
+
+
+def find_raw_match_in_index(jpeg_path: str, index: dict[str, str]) -> str | None:
+    """Find the RAW in ``index`` whose stem is the longest prefix of the JPEG stem."""
+    jpeg_norm = _normalize_stem(os.path.splitext(os.path.basename(jpeg_path))[0])
+    best: str | None = None
+    best_len = 0
+    for raw_norm, raw_path in index.items():
+        if jpeg_norm.startswith(raw_norm) and len(raw_norm) > best_len:
+            best = raw_path
+            best_len = len(raw_norm)
+    return best
+
+
 # ── EXIF reading from TIFF-based RAW ─────────────────────────────────────────
 
 def read_exif_from_raw(path: str) -> dict:

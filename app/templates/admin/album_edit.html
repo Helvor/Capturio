@@ -14,6 +14,26 @@
   <p class="progress-label" id="regenLabel"></p>
 </div>
 
+<div id="matchRawBanner" class="jobs-banner" style="display:none;margin-bottom:1rem"></div>
+
+<details class="admin-section match-raw-section">
+  <summary><strong>Match RAW metadata</strong> <span class="muted-cell" style="font-weight:300">— fill missing camera info on this album's photos from sibling RAW files</span></summary>
+  <form action="/admin/albums/{{ album.id }}/match-raw-meta-bg" method="post" class="match-raw-form">
+    <div class="form-group">
+      <label>RAW folder path <span class="form-hint">(optional — leave empty to search in each photo's own folder)</span></label>
+      <input type="text" name="raw_dir" placeholder="e.g. raw/2024 or /photos/raw" />
+      <p class="muted-cell" style="font-size:11px;margin:4px 0 0">
+        Path is relative to the photos directory, or absolute. Recursively scans for ARW / NEF / DNG / CR2 / RAF / ORF / RW2.
+        Matching rule: RAW base name must be a prefix of the JPEG base name (e.g. <code>DSC0043.ARW</code> → <code>DSC0043-edit.jpg</code>).
+      </p>
+    </div>
+    <button type="submit" class="btn-secondary"
+            onclick="return confirm('Scan and apply RAW metadata to photos in this album that have no camera info?')">
+      Run on this album
+    </button>
+  </form>
+</details>
+
 <div class="admin-section">
   <h2>Album settings</h2>
   <form action="/admin/albums/{{ album.id }}/edit" method="post" class="edit-form">
@@ -186,6 +206,28 @@
 
 {% block scripts %}
 <script>
+const matchRawBanner = document.getElementById('matchRawBanner');
+async function pollMatchRaw() {
+  try {
+    const job = await (await fetch('/admin/match-raw-job')).json();
+    if (!job || !job.status) { matchRawBanner.style.display = 'none'; return; }
+    if (job.status === 'running') {
+      const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
+      const idx = job.raw_index_size != null ? ' [' + job.raw_index_size + ' RAWs indexed]' : '';
+      matchRawBanner.innerHTML = '<span class="job-running">&#8635; Match RAW — ' + job.current + '/' + job.total + ' (' + pct + '%) — ' + job.matched + ' matched' + idx + '</span>';
+      matchRawBanner.style.display = 'flex';
+    } else if (job.status === 'done') {
+      const parts = [job.matched + ' matched'];
+      if (job.no_raw > 0) parts.push(job.no_raw + ' no RAW found');
+      if (job.no_exif > 0) parts.push(job.no_exif + ' RAW unreadable');
+      matchRawBanner.innerHTML = '<span class="job-done">&#10003; Match RAW done — ' + parts.join(', ') + '</span>';
+      matchRawBanner.style.display = 'flex';
+    }
+  } catch (_) {}
+}
+pollMatchRaw();
+setInterval(pollMatchRaw, 2000);
+
 function togglePrivacy() {
   const sec = document.getElementById('passwordSection');
   sec.style.display = document.getElementById('isPrivate').checked ? 'block' : 'none';

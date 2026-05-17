@@ -52,30 +52,45 @@ async def _run_regen_job():
 _match_raw_job: dict = {}
 
 
-async def _run_match_raw_job():
+async def _run_match_raw_job(album_id: uuid.UUID | None = None, raw_dir: str | None = None):
     from app.database import AsyncSessionLocal
-    from app.services.exif_raw import find_raw_match, read_exif_from_raw
+    from app.services.exif_raw import (
+        find_raw_match, read_exif_from_raw,
+        build_raw_index, find_raw_match_in_index,
+    )
     from sqlalchemy import update as sa_update
 
     _match_raw_job.update({
         "status": "running", "current": 0, "total": 0,
         "matched": 0, "no_raw": 0, "no_exif": 0,
+        "scope": "album" if album_id else "all",
+        "raw_dir": raw_dir or "(same folder as JPEG)",
         "started_at": time.time(), "done_at": None,
     })
 
+    raw_index: dict[str, str] | None = None
+    if raw_dir:
+        raw_index = await asyncio.to_thread(build_raw_index, raw_dir)
+        _match_raw_job["raw_index_size"] = len(raw_index)
+
     async with AsyncSessionLocal() as db:
-        photos = (await db.execute(
-            select(Photo.id, Photo.filepath)
-            .where(Photo.exif_camera.is_(None))
-            .order_by(Photo.uploaded_at)
-        )).all()
+        query = select(Photo.id, Photo.filepath).where(Photo.exif_camera.is_(None))
+        if album_id is not None:
+            query = query.join(AlbumPhoto, AlbumPhoto.photo_id == Photo.id).where(
+                AlbumPhoto.album_id == album_id
+            )
+        query = query.order_by(Photo.uploaded_at)
+        photos = (await db.execute(query)).all()
 
         _match_raw_job["total"] = len(photos)
 
         for i, (photo_id, filepath) in enumerate(photos):
             _match_raw_job["current"] = i + 1
             try:
-                raw_path = await asyncio.to_thread(find_raw_match, filepath)
+                if raw_index is not None:
+                    raw_path = find_raw_match_in_index(filepath, raw_index)
+                else:
+                    raw_path = await asyncio.to_thread(find_raw_match, filepath)
                 if not raw_path:
                     _match_raw_job["no_raw"] += 1
                     continue
@@ -100,6 +115,27 @@ async def _run_match_raw_job():
         await db.commit()
 
     _match_raw_job.update({"status": "done", "done_at": time.time()})
+
+
+def _resolve_safe_path(raw_dir: str) -> str | None:
+    """Resolve ``raw_dir`` against settings.photos_dir, reject if outside.
+
+    Accepts absolute or relative paths.  Returns absolute path or None if
+    invalid / outside photos_dir.
+    """
+    settings = get_settings()
+    base = os.path.realpath(settings.photos_dir)
+    candidate = raw_dir.strip()
+    if not candidate:
+        return None
+    if not os.path.isabs(candidate):
+        candidate = os.path.join(settings.photos_dir, candidate)
+    candidate = os.path.realpath(candidate)
+    if not candidate.startswith(base):
+        return None
+    if not os.path.isdir(candidate):
+        return None
+    return candidate
 
 router = APIRouter(prefix="/admin")
 
@@ -375,7 +411,10 @@ async def regen_thumbs_bg(request: Request):
 
 
 @router.post("/photos/match-raw-meta-bg")
-async def start_match_raw_meta_bg(request: Request):
+async def start_match_raw_meta_bg(
+    request: Request,
+    raw_dir: str = Form(default=""),
+):
     try:
         get_current_admin(request)
     except HTTPException:
@@ -384,8 +423,43 @@ async def start_match_raw_meta_bg(request: Request):
     if _match_raw_job.get("status") == "running":
         return RedirectResponse("/admin/photos", status_code=303)
 
-    asyncio.create_task(_run_match_raw_job())
+    resolved_dir: str | None = None
+    if raw_dir.strip():
+        resolved_dir = _resolve_safe_path(raw_dir)
+        if resolved_dir is None:
+            return JSONResponse({"ok": False, "error": "Invalid RAW folder path"}, status_code=400)
+
+    asyncio.create_task(_run_match_raw_job(raw_dir=resolved_dir))
     return RedirectResponse("/admin/photos", status_code=303)
+
+
+@router.post("/albums/{album_id}/match-raw-meta-bg")
+async def start_album_match_raw_meta_bg(
+    album_id: str,
+    request: Request,
+    raw_dir: str = Form(default=""),
+):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    if _match_raw_job.get("status") == "running":
+        return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
+
+    resolved_dir: str | None = None
+    if raw_dir.strip():
+        resolved_dir = _resolve_safe_path(raw_dir)
+        if resolved_dir is None:
+            return JSONResponse({"ok": False, "error": "Invalid RAW folder path"}, status_code=400)
+
+    try:
+        aid = uuid.UUID(album_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid album id")
+
+    asyncio.create_task(_run_match_raw_job(album_id=aid, raw_dir=resolved_dir))
+    return RedirectResponse(f"/admin/albums/{album_id}/edit", status_code=303)
 
 
 @router.get("/match-raw-job")
