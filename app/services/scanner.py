@@ -20,6 +20,8 @@ except ImportError:
     HAS_PIEXIF = False
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+RAW_EXTENSIONS = {".arw", ".nef", ".cr2", ".cr3", ".raf", ".dng", ".orf", ".rw2", ".rw1", ".pef", ".srf", ".sr2", ".x3f", ".3fr", ".mef", ".mos"}
+_ALL_VISIBLE = SUPPORTED_EXTENSIONS | RAW_EXTENSIONS
 CONCURRENCY = 8  # parallel photo processing workers
 
 
@@ -168,11 +170,13 @@ def get_folder_tree(base_dir: str, rel_path: str, known_paths: set) -> list[dict
         files = []
         try:
             for fname in sorted(os.listdir(entry.path)):
-                if os.path.splitext(fname)[1].lower() in SUPPORTED_EXTENSIONS:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext in _ALL_VISIBLE:
                     fpath = os.path.join(entry.path, fname)
                     files.append({
                         "filename": fname,
                         "imported": fpath in known_paths,
+                        "raw": ext in RAW_EXTENSIONS,
                     })
         except (PermissionError, FileNotFoundError):
             pass
