@@ -1,7 +1,11 @@
+import time
+
 import markdown as md
 from fastapi.templating import Jinja2Templates
 
 templates = Jinja2Templates(directory="app/templates")
+
+ASSET_VERSION = str(int(time.time()))
 
 
 def _markdown_filter(text: str) -> str:
@@ -21,3 +25,4 @@ def _filesize_filter(size: int | None) -> str:
 
 templates.env.filters["markdown"] = _markdown_filter
 templates.env.filters["filesize"] = _filesize_filter
+templates.env.globals["asset_v"] = ASSET_VERSION
