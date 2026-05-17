@@ -88,25 +88,26 @@ button, input, select, textarea {
 .navbar-links a:hover { color: var(--text); }
 .navbar-links a.nav-active { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* ── Gallery grid (masonry) ────────────────────────────────────────────────── */
+/* ── Gallery grid ──────────────────────────────────────────────────────────── */
 .photo-grid {
-  columns: 3 260px;
-  column-gap: 3px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 3px;
   padding: 3px;
 }
 
 .photo-card {
   display: block;
-  break-inside: avoid;
-  margin-bottom: 3px;
   position: relative;
   overflow: hidden;
   background: var(--surface);
+  aspect-ratio: 3 / 2;
 }
 
 .photo-card img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
   display: block;
   opacity: 0;
   transition: opacity 0.4s ease, transform 0.45s ease;
@@ -1191,7 +1192,7 @@ a.space-section-title:hover { color: var(--accent); }
 @media (max-width: 768px) {
   .navbar { padding: 0 1rem; }
   .navbar-links a { padding: 0 0.6rem; }
-  .photo-grid { columns: 2 160px; }
+  .photo-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .albums-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .section-header { padding: 1.25rem 1rem 1rem; }
   .filter-bar { padding: 0 1rem; }
@@ -1207,7 +1208,7 @@ a.space-section-title:hover { color: var(--accent); }
 
 @media (max-width: 480px) {
   .navbar-links a { padding: 0 0.4rem; font-size: 11px; }
-  .photo-grid { columns: 2; }
+  .photo-grid { grid-template-columns: repeat(2, 1fr); }
   .albums-grid { grid-template-columns: repeat(2, 1fr); }
   .photo-arrow { display: none; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
