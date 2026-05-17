@@ -47,6 +47,60 @@ async def _run_regen_job():
             _regen_job["current"] = i + 1
         _regen_job.update({"status": "done", "done_at": time.time()})
 
+
+# ── Background match-RAW-meta job ─────────────────────────────────────────────
+_match_raw_job: dict = {}
+
+
+async def _run_match_raw_job():
+    from app.database import AsyncSessionLocal
+    from app.services.exif_raw import find_raw_match, read_exif_from_raw
+    from sqlalchemy import update as sa_update
+
+    _match_raw_job.update({
+        "status": "running", "current": 0, "total": 0,
+        "matched": 0, "no_raw": 0, "no_exif": 0,
+        "started_at": time.time(), "done_at": None,
+    })
+
+    async with AsyncSessionLocal() as db:
+        photos = (await db.execute(
+            select(Photo.id, Photo.filepath)
+            .where(Photo.exif_camera.is_(None))
+            .order_by(Photo.uploaded_at)
+        )).all()
+
+        _match_raw_job["total"] = len(photos)
+
+        for i, (photo_id, filepath) in enumerate(photos):
+            _match_raw_job["current"] = i + 1
+            try:
+                raw_path = await asyncio.to_thread(find_raw_match, filepath)
+                if not raw_path:
+                    _match_raw_job["no_raw"] += 1
+                    continue
+                exif = await asyncio.to_thread(read_exif_from_raw, raw_path)
+                if not exif.get("camera"):
+                    _match_raw_job["no_exif"] += 1
+                    continue
+                values = {k: v for k, v in {
+                    "exif_camera": exif["camera"],
+                    "exif_lens": exif["lens"],
+                    "exif_focal_length": exif["focal_length"],
+                    "exif_shutter_speed": exif["shutter_speed"],
+                    "exif_aperture": exif["aperture"],
+                    "exif_iso": exif["iso"],
+                    "taken_at": exif["taken_at"],
+                }.items() if v is not None}
+                await db.execute(sa_update(Photo).where(Photo.id == photo_id).values(**values))
+                _match_raw_job["matched"] += 1
+            except Exception:
+                pass
+
+        await db.commit()
+
+    _match_raw_job.update({"status": "done", "done_at": time.time()})
+
 router = APIRouter(prefix="/admin")
 
 PAGE_SIZE = 20
@@ -318,6 +372,29 @@ async def regen_thumbs_bg(request: Request):
 
     asyncio.create_task(_run_regen_job())
     return RedirectResponse("/admin/photos", status_code=303)
+
+
+@router.post("/photos/match-raw-meta-bg")
+async def start_match_raw_meta_bg(request: Request):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        return RedirectResponse("/auth/login", status_code=302)
+
+    if _match_raw_job.get("status") == "running":
+        return RedirectResponse("/admin/photos", status_code=303)
+
+    asyncio.create_task(_run_match_raw_job())
+    return RedirectResponse("/admin/photos", status_code=303)
+
+
+@router.get("/match-raw-job")
+async def match_raw_job_status(request: Request):
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        raise HTTPException(status_code=401)
+    return JSONResponse(_match_raw_job)
 
 
 @router.post("/photos/regen-thumbs")
