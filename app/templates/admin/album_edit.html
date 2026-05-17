@@ -58,18 +58,18 @@
       <input type="number" name="sort_order" value="{{ album.sort_order }}" />
     </div>
     <div class="form-group">
-      <label>Space</label>
-      <div class="space-picker" id="spacePicker">
-        <input type="hidden" name="space_id" id="spaceIdInput" value="{{ album.space_id or '' }}" />
-        <input type="text" id="spaceSearchInput"
-               value="{% if album.space %}{{ album.space.title }}{% endif %}"
-               placeholder="No space (search to pick…)" autocomplete="off" class="space-search-input" />
-        <div class="space-dropdown" id="spaceDropdown" style="display:none">
-          <div class="space-option" data-id="" data-label="— No space —">— No space —</div>
-          {% for space in spaces %}
-          <div class="space-option" data-id="{{ space.id }}" data-label="{{ space.title }}">{{ space.title }}</div>
-          {% endfor %}
-        </div>
+      <label>Space <span class="form-hint">(optional)</span></label>
+      <div class="space-pill-group">
+        <label class="space-pill">
+          <input type="radio" name="space_id" value="" {% if not album.space_id %}checked{% endif %} />
+          <span>No space</span>
+        </label>
+        {% for space in spaces %}
+        <label class="space-pill">
+          <input type="radio" name="space_id" value="{{ space.id }}" {% if album.space_id == space.id %}checked{% endif %} />
+          <span>{{ space.title }}</span>
+        </label>
+        {% endfor %}
       </div>
     </div>
     <div class="form-row">
@@ -248,39 +248,6 @@ function copyShareLink() {
   });
 }
 
-// -- Space picker
-(function () {
-  const searchInput = document.getElementById('spaceSearchInput');
-  const dropdown = document.getElementById('spaceDropdown');
-  const hiddenInput = document.getElementById('spaceIdInput');
-  if (!searchInput) return;
-  const options = Array.from(dropdown.querySelectorAll('.space-option'));
-
-  function showDropdown(filter) {
-    const q = (filter || '').toLowerCase();
-    let anyVisible = false;
-    options.forEach(opt => {
-      const match = !q || opt.dataset.label.toLowerCase().includes(q);
-      opt.style.display = match ? '' : 'none';
-      if (match) anyVisible = true;
-    });
-    dropdown.style.display = anyVisible ? 'block' : 'none';
-  }
-
-  searchInput.addEventListener('focus', () => showDropdown(searchInput.value));
-  searchInput.addEventListener('input', () => showDropdown(searchInput.value));
-  options.forEach(opt => {
-    opt.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      hiddenInput.value = opt.dataset.id;
-      searchInput.value = opt.dataset.id ? opt.dataset.label : '';
-      dropdown.style.display = 'none';
-    });
-  });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#spacePicker')) dropdown.style.display = 'none';
-  });
-})();
 
 // -- Reorder + cover via fetch (avoids nested form issue)
 const ALBUM_REORDER_ID = '{{ album.id }}';
