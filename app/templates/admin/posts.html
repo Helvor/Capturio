@@ -3,14 +3,21 @@
 
 {% block content %}
 <div class="admin-page-header">
-  <h1>Posts &amp; Pages</h1>
+  <div>
+    <h1>Posts &amp; Pages</h1>
+    <p class="page-subtitle">Announcements appear on the public site; pages are standalone content.</p>
+  </div>
   <div class="header-actions">
     <a href="/admin/posts/create?post_type=announcement" class="btn-primary">+ Announcement</a>
     <a href="/admin/posts/create?post_type=page" class="btn-secondary">+ Page</a>
   </div>
 </div>
 
-<div class="admin-section">
+<section class="stats-block">
+  <div class="block-head">
+    <h2>All posts</h2>
+    <span class="block-meta">{{ posts|length }} total</span>
+  </div>
   <table class="admin-table">
     <thead>
       <tr>
@@ -49,5 +56,5 @@
       {% endfor %}
     </tbody>
   </table>
-</div>
+</section>
 {% endblock %}

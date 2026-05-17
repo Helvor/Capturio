@@ -3,65 +3,77 @@
 
 {% block content %}
 <div class="admin-page-header">
-  <h1>Dashboard</h1>
+  <div>
+    <h1>Dashboard</h1>
+    <p class="page-subtitle">Overview of your Capturio library.</p>
+  </div>
 </div>
 
 <div id="jobsBanner" class="jobs-banner" style="display:none"></div>
 
-<div class="stats-grid">
-  <div class="stat-card">
-    <span class="stat-value">{{ total_photos }}</span>
-    <span class="stat-label">Total photos</span>
+<section class="stats-hero">
+  <div class="hero-card">
+    <span class="hero-label">Total photos</span>
+    <div class="hero-value">{{ total_photos }}</div>
+    <div class="hero-sub">
+      <span class="dot dot-green"></span>{{ published_photos }} published
+      <span class="hero-sub-sep">·</span>
+      <span class="dot dot-grey"></span>{{ total_photos - published_photos }} draft
+    </div>
   </div>
-  <div class="stat-card">
-    <span class="stat-value">{{ published_photos }}</span>
-    <span class="stat-label">Published</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-value">{{ total_albums }}</span>
-    <span class="stat-label">Albums</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-value">{{ total_posts }}</span>
-    <span class="stat-label">Announcements</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-value" id="dbSizeVal">{{ db_size_mb }} MB</span>
-    <span class="stat-label">Database size</span>
-  </div>
-</div>
 
-<div class="admin-section">
-  <div class="admin-section-header">
+  <div class="hero-card">
+    <span class="hero-label">Albums</span>
+    <div class="hero-value">{{ total_albums }}</div>
+    <div class="hero-sub">Curated collections</div>
+  </div>
+
+  <div class="hero-card">
+    <span class="hero-label">Posts</span>
+    <div class="hero-value">{{ total_posts }}</div>
+    <div class="hero-sub">News &amp; pages</div>
+  </div>
+
+  <div class="hero-card">
+    <span class="hero-label">Database</span>
+    <div class="hero-value" id="dbSizeVal">{{ db_size_mb }}<span class="hero-unit">MB</span></div>
+    <div class="hero-sub">
+      <button class="link-action" id="dbOptBtn" onclick="runDbOptimize()">&#9881; Optimize now</button>
+    </div>
+  </div>
+</section>
+
+<section class="stats-block">
+  <div class="block-head">
     <h2>Quick actions</h2>
   </div>
   <div class="quick-actions">
     <a href="/admin/folders" class="btn-primary">&#128193; Import from folder</a>
     <a href="/admin/photos" class="btn-secondary">Manage photos</a>
     <a href="/admin/albums" class="btn-secondary">Manage albums</a>
+    <a href="/admin/spaces" class="btn-secondary">Manage spaces</a>
     <a href="/admin/posts" class="btn-secondary">Manage posts</a>
-    <button class="btn-secondary" id="dbOptBtn" onclick="runDbOptimize()">&#9881; Optimize DB</button>
   </div>
-</div>
+</section>
 
-<div id="dbOptSection" style="display:none" class="admin-section">
-  <div class="admin-section-header">
+<div id="dbOptSection" style="display:none" class="stats-block">
+  <div class="block-head">
     <h2>Database optimization</h2>
+    <span class="block-meta" id="dbOptLabel"></span>
   </div>
   <table class="admin-table" id="dbOptTable">
     <thead>
-      <tr><th>Table</th><th>Live rows</th><th>Dead rows cleaned</th><th>Size</th><th>Status</th></tr>
+      <tr><th>Table</th><th>Live rows</th><th>Dead cleaned</th><th>Size</th><th>Status</th></tr>
     </thead>
     <tbody id="dbOptBody"></tbody>
   </table>
-  <p class="progress-label" id="dbOptLabel" style="margin-top:.75rem"></p>
 </div>
 
 {% if announcements %}
-<div class="admin-section">
-  <div class="admin-section-header">
+<section class="stats-block">
+  <div class="block-head">
     <h2>Announcements</h2>
-    <a href="/admin/posts" class="btn-xs">Manage</a>
+    <a href="/admin/posts" class="block-link">Manage &rarr;</a>
   </div>
   <div class="announcement-list">
     {% for post in announcements %}
@@ -75,18 +87,19 @@
     </div>
     {% endfor %}
   </div>
-</div>
+</section>
 {% endif %}
 
 {% if recent_photos %}
-<div class="admin-section">
-  <div class="admin-section-header">
+<section class="stats-block">
+  <div class="block-head">
     <h2>Recent imports</h2>
+    <a href="/admin/photos" class="block-link">View all &rarr;</a>
   </div>
   <table class="admin-table">
     <thead>
       <tr>
-        <th>Thumb</th>
+        <th></th>
         <th>Filename</th>
         <th>Status</th>
         <th>Imported</th>
@@ -109,7 +122,7 @@
       {% endfor %}
     </tbody>
   </table>
-</div>
+</section>
 {% endif %}
 {% endblock %}
 
@@ -182,9 +195,9 @@ async function runDbOptimize() {
           if (ev.done) {
             label.textContent = `Done. Total DB size: ${ev.db_size}`;
             const sizeEl = document.getElementById('dbSizeVal');
-            if (sizeEl) sizeEl.textContent = ev.db_size;
+            if (sizeEl) sizeEl.innerHTML = ev.db_size.replace(/\s*([A-Za-z]+)$/, '<span class="hero-unit">$1</span>');
             btn.disabled = false;
-            btn.textContent = '⚙ Optimize DB';
+            btn.innerHTML = '&#9881; Optimize now';
           } else {
             const tr = rows[ev.table] || (() => {
               const el = document.createElement('tr');
@@ -212,7 +225,7 @@ async function runDbOptimize() {
   } catch (e) {
     label.textContent = 'Error: ' + e.message;
     btn.disabled = false;
-    btn.textContent = '⚙ Optimize DB';
+    btn.innerHTML = '&#9881; Optimize now';
   }
 }
 </script>
