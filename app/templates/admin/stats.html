@@ -1,64 +1,151 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Stats — Capturio Admin{% endblock %}
 
-{% macro bar_section(title, rows) %}
+{% macro bar_block(rows, unit="") %}
 {% if rows %}
 {% set max_n = rows | map(attribute=1) | max %}
-<div class="stats-section">
-  <h3>{{ title }}</h3>
+{% set total_n = rows | map(attribute=1) | sum %}
+<div class="bar-list">
   {% for label, n in rows %}
-  <div class="stats-bar-row">
-    <span class="stats-bar-label" title="{{ label }}">{{ label }}</span>
-    <div class="stats-bar-track">
-      <div class="stats-bar-fill" style="width:{{ ((n / max_n) * 100) | round | int }}%"></div>
+  {% set pct_track = ((n / max_n) * 100) if max_n else 0 %}
+  {% set pct_share = ((n / total_n) * 100) if total_n else 0 %}
+  <div class="bar-item{% if loop.first %} bar-item-top{% endif %}">
+    <div class="bar-item-head">
+      <span class="bar-item-label" title="{{ label }}">{{ label }}{{ unit }}</span>
+      <span class="bar-item-meta">
+        <span class="bar-item-count">{{ n }}</span>
+        <span class="bar-item-pct">{{ pct_share | round | int }}%</span>
+      </span>
     </div>
-    <span class="stats-bar-count">{{ n }}</span>
+    <div class="bar-item-track">
+      <div class="bar-item-fill" style="width:{{ pct_track | round | int }}%"></div>
+    </div>
   </div>
   {% endfor %}
 </div>
+{% else %}
+<p class="bar-empty">No data</p>
 {% endif %}
 {% endmacro %}
 
 {% block content %}
 <div class="admin-page-header">
   <h1>Statistics</h1>
+  <p class="page-subtitle">{{ total }} photo{% if total != 1 %}s{% endif %} across your library</p>
 </div>
 
-<div class="stat-cards">
-  <div class="stat-card">
-    <div class="stat-card-value">{{ total }}</div>
-    <div class="stat-card-label">Total photos</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card-value">{{ published }}</div>
-    <div class="stat-card-label">Published</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card-value">{{ draft }}</div>
-    <div class="stat-card-label">Draft</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card-value">{{ total_size }}</div>
-    <div class="stat-card-label">Storage</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-card-value">{{ with_exif }}</div>
-    <div class="stat-card-label">With EXIF</div>
-  </div>
+{% if total == 0 %}
+<div class="empty-state" style="padding:4rem 2rem">
+  <p style="font-size:1.05rem;margin-bottom:0.5rem">No photos yet</p>
+  <p class="muted-cell">Import some photos to unlock your library insights.</p>
 </div>
+{% else %}
 
-<div class="stats-grid">
-  {{ bar_section("Cameras", cameras) }}
-  {{ bar_section("Lenses", lenses) }}
-  {{ bar_section("Focal lengths", focal_lengths) }}
-  {{ bar_section("Apertures", apertures) }}
-  {{ bar_section("ISO", iso_buckets) }}
-  {{ bar_section("Photos per month", timeline) }}
-</div>
+<!-- Hero metrics -->
+<section class="stats-hero">
+  <div class="hero-card">
+    <span class="hero-label">Total photos</span>
+    <div class="hero-value">{{ total }}</div>
+    <div class="hero-sub">
+      <span class="dot dot-green"></span>{{ published }} published
+      <span class="hero-sub-sep">·</span>
+      <span class="dot dot-grey"></span>{{ draft }} draft
+    </div>
+  </div>
 
-{% if not cameras and not lenses and not focal_lengths and not apertures and not iso_buckets and not timeline %}
-<div class="empty-state" style="padding:3rem 2rem">
-  <p class="muted-cell">No EXIF data found. Import some photos to see statistics.</p>
-</div>
+  <div class="hero-card">
+    <span class="hero-label">Publication rate</span>
+    <div class="hero-donut-row">
+      <div class="donut" style="--pct:{{ pct_published }}">
+        <span class="donut-text">{{ pct_published }}%</span>
+      </div>
+      <div class="hero-donut-meta">
+        <div class="hero-donut-num">{{ published }}<span class="hero-donut-of">/{{ total }}</span></div>
+        <div class="hero-sub">published / total</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-card">
+    <span class="hero-label">Storage</span>
+    <div class="hero-value">{{ storage_value }}<span class="hero-unit">{{ storage_unit }}</span></div>
+    <div class="hero-sub">~{{ avg_size_value }} {{ avg_size_unit }} avg / photo</div>
+  </div>
+
+  <div class="hero-card">
+    <span class="hero-label">Gear</span>
+    <div class="hero-value">{{ cameras_distinct }}<span class="hero-unit">camera{% if cameras_distinct != 1 %}s{% endif %}</span></div>
+    <div class="hero-sub">{{ lenses_distinct }} lens{% if lenses_distinct != 1 %}es{% endif %} · {% if top_camera %}top: <span class="hero-strong">{{ top_camera[0] }}</span>{% else %}—{% endif %}</div>
+  </div>
+</section>
+
+<!-- Activity timeline -->
+{% if timeline %}
+<section class="stats-block">
+  <div class="block-head">
+    <h2>Activity</h2>
+    {% if busiest %}
+    <span class="block-meta">Busiest month: <span class="hero-strong">{{ busiest[0].strftime('%b %Y') }}</span> · {{ busiest[1] }} photos</span>
+    {% endif %}
+  </div>
+  {% set tl_max = timeline | map(attribute=1) | max %}
+  <div class="timeline-chart">
+    {% for month, n in timeline %}
+    {% set h = ((n / tl_max) * 100) if tl_max else 0 %}
+    <div class="timeline-col" title="{{ month.strftime('%B %Y') }} — {{ n }} photo{% if n != 1 %}s{% endif %}">
+      <div class="timeline-bar" style="height:{{ h | round(1) }}%"></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="timeline-axis">
+    <span>{{ timeline[0][0].strftime('%b %Y') }}</span>
+    {% if timeline|length > 1 %}<span>{{ timeline[-1][0].strftime('%b %Y') }}</span>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Gear: cameras + lenses side by side -->
+<section class="stats-two-col">
+  <div class="stats-block">
+    <div class="block-head">
+      <h2>Cameras</h2>
+      <span class="block-meta">{{ cameras_distinct }} distinct</span>
+    </div>
+    {{ bar_block(cameras) }}
+  </div>
+
+  <div class="stats-block">
+    <div class="block-head">
+      <h2>Lenses</h2>
+      <span class="block-meta">{{ lenses_distinct }} distinct</span>
+    </div>
+    {{ bar_block(lenses) }}
+  </div>
+</section>
+
+<!-- Shooting habits: focal, aperture, ISO -->
+<section class="stats-three-col">
+  <div class="stats-block">
+    <div class="block-head">
+      <h2>Focal length</h2>
+    </div>
+    {{ bar_block(focal_lengths) }}
+  </div>
+
+  <div class="stats-block">
+    <div class="block-head">
+      <h2>Aperture</h2>
+    </div>
+    {{ bar_block(apertures) }}
+  </div>
+
+  <div class="stats-block">
+    <div class="block-head">
+      <h2>ISO</h2>
+    </div>
+    {{ bar_block(iso_buckets) }}
+  </div>
+</section>
+
 {% endif %}
 {% endblock %}
