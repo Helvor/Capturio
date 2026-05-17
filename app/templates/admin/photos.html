@@ -16,11 +16,16 @@
           onsubmit="return confirm('Regenerate all thumbnails in background? Progress visible on Dashboard.')">
       <button type="submit" class="btn-secondary">Regen thumbnails</button>
     </form>
+    <form action="/admin/photos/match-raw-meta-bg" method="post"
+          onsubmit="return confirm('Scan RAW files to fill missing metadata on imported JPEGs?\n\nThis matches e.g. DSC0043.ARW → DSC0043-edit.jpg and copies camera, lens, exposure info.')">
+      <button type="submit" class="btn-secondary">Match RAW metadata</button>
+    </form>
     <a href="/admin/folders" class="btn-primary">&#128193; Import</a>
   </div>
 </div>
 
 <div id="regenBanner" class="jobs-banner" style="display:none"></div>
+<div id="matchRawBanner" class="jobs-banner" style="display:none"></div>
 
 <section class="stats-block">
   <div class="block-head">
@@ -138,6 +143,27 @@ async function pollRegen() {
 }
 pollRegen();
 setInterval(pollRegen, 2000);
+
+const matchRawBanner = document.getElementById('matchRawBanner');
+async function pollMatchRaw() {
+  try {
+    const job = await (await fetch('/admin/match-raw-job')).json();
+    if (!job || !job.status) { matchRawBanner.style.display = 'none'; return; }
+    if (job.status === 'running') {
+      const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
+      matchRawBanner.innerHTML = '<span class="job-running">&#8635; Match RAW metadata — ' + job.current + '/' + job.total + ' (' + pct + '%) — ' + job.matched + ' matched</span>';
+      matchRawBanner.style.display = 'flex';
+    } else if (job.status === 'done') {
+      const parts = [job.matched + ' matched'];
+      if (job.no_raw > 0) parts.push(job.no_raw + ' no RAW found');
+      if (job.no_exif > 0) parts.push(job.no_exif + ' RAW unreadable');
+      matchRawBanner.innerHTML = '<span class="job-done">&#10003; Match RAW done — ' + parts.join(', ') + '</span>';
+      matchRawBanner.style.display = 'flex';
+    }
+  } catch (_) {}
+}
+pollMatchRaw();
+setInterval(pollMatchRaw, 2000);
 
 // -- Multi-select
 const rows = Array.from(document.querySelectorAll('.photo-row'));
