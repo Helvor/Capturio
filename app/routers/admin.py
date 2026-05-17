@@ -1209,7 +1209,12 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
     total = (await db.execute(select(func.count()).select_from(Photo))).scalar() or 0
     published = (await db.execute(select(func.count()).select_from(Photo).where(Photo.is_published == True))).scalar() or 0
     total_size = (await db.execute(select(func.coalesce(func.sum(Photo.file_size_bytes), 0)))).scalar() or 0
-    with_exif = (await db.execute(select(func.count()).select_from(Photo).where(Photo.exif_camera.isnot(None)))).scalar() or 0
+    cameras_distinct = (await db.execute(
+        select(func.count(func.distinct(Photo.exif_camera))).where(Photo.exif_camera.isnot(None))
+    )).scalar() or 0
+    lenses_distinct = (await db.execute(
+        select(func.count(func.distinct(Photo.exif_lens))).where(Photo.exif_lens.isnot(None))
+    )).scalar() or 0
 
     async def top_values(col, limit=10):
         rows = (await db.execute(
@@ -1233,7 +1238,7 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
         elif v < 1600: iso_buckets_map["800–1599"] += 1
         elif v < 3200: iso_buckets_map["1600–3199"] += 1
         else: iso_buckets_map["≥3200"] += 1
-    iso_buckets = [(k, v) for k, v in iso_buckets_map.items() if v > 0]
+    iso_buckets = [(k, v) for k, v in iso_buckets_map.items()]
 
     timeline_rows = (await db.execute(
         select(
@@ -1243,16 +1248,27 @@ async def stats_page(request: Request, db: AsyncSession = Depends(get_db)):
         .where(Photo.taken_at.isnot(None))
         .group_by("month").order_by("month")
     )).all()
-    timeline = [(r.month.strftime("%Y-%m") if r.month else "?", r.n) for r in timeline_rows]
+    timeline = [(r.month, r.n) for r in timeline_rows if r.month]
 
     def fmt_bytes(b):
-        if b >= 1_073_741_824: return f"{b / 1_073_741_824:.1f} GB"
-        if b >= 1_048_576: return f"{b / 1_048_576:.0f} MB"
-        return f"{b / 1024:.0f} KB"
+        if b >= 1_073_741_824: return (f"{b / 1_073_741_824:.1f}", "GB")
+        if b >= 1_048_576: return (f"{b / 1_048_576:.0f}", "MB")
+        return (f"{b / 1024:.0f}", "KB")
+
+    storage_value, storage_unit = fmt_bytes(total_size)
+    avg_size_value, avg_size_unit = fmt_bytes(total_size // total) if total else ("0", "KB")
+    pct_published = round((published / total) * 100) if total else 0
+    top_camera = cameras[0] if cameras else None
+    top_lens = lenses[0] if lenses else None
+    busiest = max(timeline, key=lambda r: r[1]) if timeline else None
 
     ctx = _admin_ctx(request,
         total=total, published=published, draft=total - published,
-        total_size=fmt_bytes(total_size), with_exif=with_exif,
+        pct_published=pct_published,
+        storage_value=storage_value, storage_unit=storage_unit,
+        avg_size_value=avg_size_value, avg_size_unit=avg_size_unit,
+        cameras_distinct=cameras_distinct, lenses_distinct=lenses_distinct,
+        top_camera=top_camera, top_lens=top_lens, busiest=busiest,
         cameras=cameras, lenses=lenses,
         focal_lengths=focal_lengths, apertures=apertures,
         iso_buckets=iso_buckets, timeline=timeline,
