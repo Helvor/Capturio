@@ -20,7 +20,7 @@
 {% if photos %}
 <div class="photo-grid" id="photoGrid">
   {% for photo in photos %}
-  <a href="/photos/{{ photo.id }}?album={{ album.slug }}" class="photo-card"{% if photo.exif_width and photo.exif_height %} style="aspect-ratio:{{ photo.exif_width }}/{{ photo.exif_height }}"{% endif %}>
+  <a href="/photos/{{ photo.id }}?album={{ album.slug }}" class="photo-card" data-photo-id="{{ photo.id }}" style="aspect-ratio:{{ photo.exif_width or 3 }}/{{ photo.exif_height or 2 }}">
     <img src="/photos/{{ photo.id }}/thumb" alt="{{ photo.title or photo.filename }}" loading="lazy" />
   </a>
   {% endfor %}
@@ -47,6 +47,9 @@
   const totalPages = {{ total_pages }};
   const slug = {{ ('"' ~ album.slug ~ '"') | safe }};
   let loading = false;
+  const loadedIds = new Set(
+    Array.from(grid.querySelectorAll('[data-photo-id]')).map(e => e.dataset.photoId)
+  );
 
   async function loadMore() {
     if (loading || page >= totalPages) return;
@@ -61,10 +64,13 @@
       page = data.page;
 
       for (const photo of data.photos) {
+        if (loadedIds.has(photo.id)) continue;
+        loadedIds.add(photo.id);
         const a = document.createElement('a');
         a.href = '/photos/' + photo.id + '?album=' + encodeURIComponent(slug);
         a.className = 'photo-card';
-        if (photo.w && photo.h) a.style.aspectRatio = photo.w + '/' + photo.h;
+        a.dataset.photoId = photo.id;
+        a.style.aspectRatio = (photo.w && photo.h) ? (photo.w + '/' + photo.h) : '3/2';
         const img = document.createElement('img');
         img.src = '/photos/' + photo.id + '/thumb';
         img.alt = photo.title || photo.filename;
@@ -74,8 +80,12 @@
         grid.appendChild(a);
       }
 
-      if (!data.has_more) sentinel.remove();
+      if (!data.has_more) {
+        observer.disconnect();
+        sentinel.remove();
+      }
     } catch (e) {
+      observer.disconnect();
       sentinel.remove();
     } finally {
       loading = false;
@@ -83,14 +93,10 @@
     }
   }
 
-  function onScroll() {
-    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
-      loadMore();
-    }
-  }
-
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+  const observer = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) loadMore();
+  }, { rootMargin: '600px' });
+  observer.observe(sentinel);
 })();
 </script>
 {% endif %}
