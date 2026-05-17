@@ -82,3 +82,88 @@ document.querySelectorAll('.photo-card img').forEach((img, i) => {
     }
   }
 })();
+
+/* ── Folder picker (used for RAW folder selection) ───────────────────────── */
+window.openFolderPicker = function (targetInputId, opts) {
+  opts = opts || {};
+  const initialPath = opts.initialPath || '';
+  const title = opts.title || 'Pick a folder';
+
+  let dialog = document.getElementById('__folderPickerDialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = '__folderPickerDialog';
+    dialog.className = 'native-dialog folder-picker-dialog';
+    dialog.innerHTML = `
+      <div class="folder-picker-head">
+        <h2 class="modal-title" id="__fpTitle"></h2>
+        <button type="button" class="btn-ghost" id="__fpClose">&#10005;</button>
+      </div>
+      <nav class="folder-picker-crumbs" id="__fpCrumbs"></nav>
+      <div class="folder-picker-current">
+        <span class="muted-cell" style="font-size:11px">Selected:</span>
+        <code id="__fpSelected">(root)</code>
+      </div>
+      <div class="folder-picker-list" id="__fpList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="__fpUse">Use this folder</button>
+        <button type="button" class="btn-secondary" id="__fpCancel">Cancel</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+  }
+
+  dialog.querySelector('#__fpTitle').textContent = title;
+  let currentPath = initialPath;
+
+  async function load(path) {
+    currentPath = path || '';
+    const url = '/admin/api/browse-folders' + (currentPath ? '?path=' + encodeURIComponent(currentPath) : '');
+    const data = await (await fetch(url)).json();
+    const crumbs = dialog.querySelector('#__fpCrumbs');
+    const list = dialog.querySelector('#__fpList');
+    const sel = dialog.querySelector('#__fpSelected');
+
+    sel.textContent = currentPath || '(photos root)';
+
+    crumbs.innerHTML = '';
+    const root = document.createElement('a');
+    root.href = '#'; root.className = 'crumb'; root.textContent = '🏠 root';
+    root.onclick = (e) => { e.preventDefault(); load(''); };
+    crumbs.appendChild(root);
+    (data.breadcrumb || []).forEach((c) => {
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep'; sep.textContent = '/';
+      crumbs.appendChild(sep);
+      const a = document.createElement('a');
+      a.href = '#'; a.className = 'crumb'; a.textContent = c.name;
+      a.onclick = (e) => { e.preventDefault(); load(c.rel_path); };
+      crumbs.appendChild(a);
+    });
+
+    list.innerHTML = '';
+    if (!data.folders.length) {
+      list.innerHTML = '<p class="muted-cell" style="font-size:12px;padding:0.75rem">No subfolders here.</p>';
+      return;
+    }
+    data.folders.forEach((f) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'folder-picker-item';
+      item.innerHTML = '<span>📁 ' + f.name + '</span>' + (f.has_sub ? '<span class="muted-cell">›</span>' : '');
+      item.onclick = () => load(f.rel_path);
+      list.appendChild(item);
+    });
+  }
+
+  dialog.querySelector('#__fpUse').onclick = () => {
+    const input = document.getElementById(targetInputId);
+    if (input) input.value = currentPath;
+    dialog.close();
+  };
+  dialog.querySelector('#__fpCancel').onclick = () => dialog.close();
+  dialog.querySelector('#__fpClose').onclick = () => dialog.close();
+
+  load(initialPath);
+  dialog.showModal();
+};

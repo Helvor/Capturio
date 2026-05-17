@@ -33,10 +33,14 @@
       RAW base name is a prefix of the JPEG base name (e.g. <code>DSC0043.ARW</code> → <code>DSC0043-edit.jpg</code>).
     </p>
     <div class="form-group">
-      <label>RAW folder path <span class="form-hint">(optional)</span></label>
-      <input type="text" name="raw_dir" placeholder="Leave empty to search each photo's own folder" />
+      <label>RAW folder <span class="form-hint">(optional)</span></label>
+      <div class="input-with-button">
+        <input type="text" name="raw_dir" id="rawDirInputAll" placeholder="Leave empty to search each photo's own folder" readonly />
+        <button type="button" class="btn-secondary btn-sm" onclick="openFolderPicker('rawDirInputAll', {initialPath: document.getElementById('rawDirInputAll').value, title: 'Pick the RAW folder'})">Browse…</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="document.getElementById('rawDirInputAll').value = ''">Clear</button>
+      </div>
       <p class="muted-cell" style="font-size:11px;margin:4px 0 0">
-        Relative to the photos directory, or absolute. Scans recursively.
+        Browse to the folder containing your RAW files (scanned recursively).
       </p>
     </div>
     <div class="modal-actions">
