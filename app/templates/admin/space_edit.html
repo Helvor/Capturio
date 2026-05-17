@@ -171,11 +171,32 @@ function togglePrivacy() {
 }
 function copyShare() {
   const input = document.getElementById('shareLink');
-  navigator.clipboard.writeText(input.value).then(() => {
-    const btn = input.nextElementSibling;
-    btn.textContent = 'Copied!';
+  const btn = input.nextElementSibling;
+  const flash = (ok) => {
+    btn.textContent = ok ? 'Copied!' : 'Copy failed';
     setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-  });
+  };
+
+  const tryExecCommand = () => {
+    try {
+      input.removeAttribute('readonly');
+      input.focus();
+      input.select();
+      input.setSelectionRange(0, input.value.length);
+      const ok = document.execCommand('copy');
+      input.setAttribute('readonly', '');
+      input.blur();
+      flash(ok);
+    } catch (_) {
+      flash(false);
+    }
+  };
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(input.value).then(() => flash(true), tryExecCommand);
+  } else {
+    tryExecCommand();
+  }
 }
 function toggleAlbumSelect(id) {
   const item = document.getElementById('albumItem_' + id);

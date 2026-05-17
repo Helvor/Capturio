@@ -240,12 +240,31 @@ function togglePrivacy() {
 function copyShareLink() {
   const input = document.getElementById('shareLinkInput');
   if (!input) return;
-  navigator.clipboard.writeText(input.value).then(() => {
-    const btn = input.nextElementSibling;
-    const prev = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => btn.textContent = prev, 2000);
-  });
+  const btn = input.nextElementSibling;
+  const prev = btn.textContent;
+  const flash = (ok) => {
+    btn.textContent = ok ? 'Copied!' : 'Copy failed';
+    setTimeout(() => { btn.textContent = prev; }, 2000);
+  };
+  const tryExec = () => {
+    try {
+      input.removeAttribute('readonly');
+      input.focus();
+      input.select();
+      input.setSelectionRange(0, input.value.length);
+      const ok = document.execCommand('copy');
+      input.setAttribute('readonly', '');
+      input.blur();
+      flash(ok);
+    } catch (_) {
+      flash(false);
+    }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(input.value).then(() => flash(true), tryExec);
+  } else {
+    tryExec();
+  }
 }
 
 
