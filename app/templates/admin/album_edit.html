@@ -20,11 +20,15 @@
   <summary><strong>Match RAW metadata</strong> <span class="muted-cell" style="font-weight:300">— fill missing camera info on this album's photos from sibling RAW files</span></summary>
   <form action="/admin/albums/{{ album.id }}/match-raw-meta-bg" method="post" class="match-raw-form">
     <div class="form-group">
-      <label>RAW folder path <span class="form-hint">(optional — leave empty to search in each photo's own folder)</span></label>
-      <input type="text" name="raw_dir" placeholder="e.g. raw/2024 or /photos/raw" />
+      <label>RAW folder <span class="form-hint">(optional — leave empty to search in each photo's own folder)</span></label>
+      <div class="input-with-button">
+        <input type="text" name="raw_dir" id="rawDirInputAlbum" placeholder="No folder selected" readonly />
+        <button type="button" class="btn-secondary btn-sm" onclick="openFolderPicker('rawDirInputAlbum', {initialPath: document.getElementById('rawDirInputAlbum').value, title: 'Pick the RAW folder'})">Browse…</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="document.getElementById('rawDirInputAlbum').value = ''">Clear</button>
+      </div>
       <p class="muted-cell" style="font-size:11px;margin:4px 0 0">
-        Path is relative to the photos directory, or absolute. Recursively scans for ARW / NEF / DNG / CR2 / RAF / ORF / RW2.
-        Matching rule: RAW base name must be a prefix of the JPEG base name (e.g. <code>DSC0043.ARW</code> → <code>DSC0043-edit.jpg</code>).
+        Browse to the folder containing your RAW files (scanned recursively). Matching rule:
+        RAW base name must be a prefix of the JPEG base name (e.g. <code>DSC0043.ARW</code> → <code>DSC0043-edit.jpg</code>).
       </p>
     </div>
     <button type="submit" class="btn-secondary"

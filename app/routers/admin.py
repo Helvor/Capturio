@@ -248,6 +248,53 @@ async def db_optimize(request: Request):
 
 # ── Folder browser ────────────────────────────────────────────────────────────
 
+@router.get("/api/browse-folders")
+async def api_browse_folders(request: Request, path: str = ""):
+    """JSON folder browser for the RAW-folder picker. Returns subfolders under
+    ``path`` (relative to photos_dir) plus a breadcrumb trail."""
+    try:
+        get_current_admin(request)
+    except HTTPException:
+        raise HTTPException(status_code=401)
+
+    settings = get_settings()
+    base = os.path.realpath(settings.photos_dir)
+    abs_path = os.path.realpath(os.path.join(base, path)) if path else base
+    if not abs_path.startswith(base):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not os.path.isdir(abs_path):
+        raise HTTPException(status_code=404, detail="Not a directory")
+
+    folders = []
+    try:
+        for entry in sorted(os.scandir(abs_path), key=lambda e: e.name.lower()):
+            if entry.is_dir(follow_symlinks=False) and not entry.name.startswith("."):
+                rel = os.path.relpath(entry.path, base)
+                has_sub = False
+                try:
+                    has_sub = any(
+                        e.is_dir() and not e.name.startswith(".")
+                        for e in os.scandir(entry.path)
+                    )
+                except (PermissionError, FileNotFoundError):
+                    pass
+                folders.append({"name": entry.name, "rel_path": rel, "has_sub": has_sub})
+    except PermissionError:
+        pass
+
+    parts = [p for p in path.split(os.sep) if p] if path else []
+    breadcrumb = [
+        {"name": part, "rel_path": os.path.join(*parts[: i + 1])}
+        for i, part in enumerate(parts)
+    ]
+
+    return JSONResponse({
+        "current_path": path,
+        "breadcrumb": breadcrumb,
+        "folders": folders,
+    })
+
+
 @router.get("/folders", response_class=HTMLResponse)
 async def folders_browser(
     request: Request,
