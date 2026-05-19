@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     photos_dir: str = "/photos"        # fixed container path, do not override
     cache_dir: str = "/app/cache"      # fixed container path, do not override
 
+    trusted_proxies: str = ""
+    # Comma-separated IPs/CIDRs of trusted reverse proxies (e.g. "127.0.0.1,172.16.0.0/12")
+    # Empty = no proxy headers trusted (direct connection mode)
+
+    admin_ip_allowlist: str = ""
+    # Comma-separated IPs/CIDRs allowed to access /admin and /auth/login
+    # Empty = all IPs allowed (default, backwards-compatible)
+
     @property
     def database_url(self) -> str:
         return (

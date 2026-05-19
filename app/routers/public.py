@@ -3,6 +3,8 @@ import hmac
 import os
 import math
 import random as _random
+import time
+from collections import defaultdict
 
 import bcrypt
 import markdown as md
@@ -24,6 +26,20 @@ from app.templates_env import templates
 
 ALBUM_COOKIE = "album_access"
 SPACE_COOKIE = "space_access"
+
+_unlock_attempts: dict[str, list[float]] = defaultdict(list)
+_UNLOCK_WINDOW = 600   # 10 minutes
+_UNLOCK_MAX = 30       # max unlock attempts per IP per window
+
+
+def _check_unlock_rate(ip: str) -> bool:
+    now = time.time()
+    attempts = [t for t in _unlock_attempts[ip] if now - t < _UNLOCK_WINDOW]
+    _unlock_attempts[ip] = attempts
+    if len(attempts) >= _UNLOCK_MAX:
+        return False
+    _unlock_attempts[ip].append(now)
+    return True
 
 
 def _get_unlocked(request: Request) -> set[str]:
@@ -229,6 +245,11 @@ async def space_unlock_page(slug: str, request: Request, db: AsyncSession = Depe
 
 @router.post("/spaces/{slug}/unlock")
 async def space_unlock(slug: str, request: Request, password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    if not _check_unlock_rate(ip):
+        from fastapi.responses import HTMLResponse as _HTML
+        return _HTML("Too many unlock attempts. Try again later.", status_code=429)
+
     space = (await db.execute(
         select(Space).where(and_(Space.slug == slug, Space.is_published == True, Space.is_private == True))
     )).scalar_one_or_none()
@@ -314,6 +335,11 @@ async def album_unlock_page(slug: str, request: Request, db: AsyncSession = Depe
 
 @router.post("/albums/{slug}/unlock")
 async def album_unlock(slug: str, request: Request, password: str = Form(...), db: AsyncSession = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    if not _check_unlock_rate(ip):
+        from fastapi.responses import HTMLResponse as _HTML
+        return _HTML("Too many unlock attempts. Try again later.", status_code=429)
+
     album = (await db.execute(
         select(Album).where(and_(Album.slug == slug, Album.is_published == True, Album.is_private == True))
     )).scalar_one_or_none()

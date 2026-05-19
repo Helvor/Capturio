@@ -601,11 +601,14 @@ async def upload_photo(
     os.makedirs(uploads_dir, exist_ok=True)
 
     for upload in files:
-        ext = os.path.splitext(upload.filename)[1].lower()
+        safe_name = os.path.basename(upload.filename.replace("\\", "/"))
+        if not safe_name or safe_name.startswith("."):
+            continue
+        ext = os.path.splitext(safe_name)[1].lower()
         if ext not in (".jpg", ".jpeg", ".png", ".webp"):
             continue
 
-        dest = os.path.join(uploads_dir, upload.filename)
+        dest = os.path.join(uploads_dir, safe_name)
         with open(dest, "wb") as f:
             shutil.copyfileobj(upload.file, f)
 
@@ -619,7 +622,7 @@ async def upload_photo(
 
         photo = Photo(
             id=photo_id,
-            filename=upload.filename,
+            filename=safe_name,
             filepath=dest,
             taken_at=exif.get("taken_at"),
             exif_data=exif.get("raw"),
